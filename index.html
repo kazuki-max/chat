@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LINE-like Chat</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="style.css" rel="stylesheet">
+    <script src="https://kit.fontawesome.com/your-code.js" crossorigin="anonymous"></script>
+    <!-- FontAwesome Placeholder -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        /* Simple addition for user name display */
+        #user-name-display {
+            font-size: 0.9rem;
+            margin-right: 10px;
+            font-weight: 500;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <!-- Login/Register View -->
+        <div id="login-view" class="view active">
+            <div class="login-container">
+                <div class="brand">
+                    <i class="fa-solid fa-comments"></i>
+                    <h1>ChatApp</h1>
+                </div>
+                <h2 id="auth-title">ログイン</h2>
+                <form id="auth-form">
+                    <input type="text" id="reg-name" placeholder="名前 (表示名)" style="display:none;">
+                    <input type="email" id="auth-email" placeholder="メールアドレス" required>
+                    <input type="password" id="auth-password" placeholder="パスワード" required>
+
+                    <!-- OTP Input (Hidden by default) -->
+                    <div id="otp-group" style="display: none; margin-bottom: 10px;">
+                        <input type="text" id="auth-otp" placeholder="認証コード (メールを確認)" style="width: 100%;">
+                    </div>
+
+                    <button type="submit" class="btn-submit" id="auth-submit-btn">ログイン</button>
+
+                    <div class="social-login">
+                        <p class="social-text">または</p>
+                        <div class="social-btns">
+                            <button type="button" class="social-btn google" onclick="handleSocialLogin('google')">
+                                <i class="fa-brands fa-google"></i> Google
+                            </button>
+                            <button type="button" class="social-btn twitter" onclick="handleSocialLogin('twitter')">
+                                <i class="fa-brands fa-twitter"></i> Twitter
+                            </button>
+                        </div>
+                    </div>
+                </form>
+
+                <div class="auth-toggle">
+                    <span id="auth-toggle-text">アカウントをお持ちでないですか？</span>
+                    <button type="button" id="auth-toggle-btn" class="text-link">新規登録</button>
+                </div>
+
+                <div class="mock-login-actions">
+                    <p>動作確認用 (接続なし)</p>
+                    <button onclick="mockLogin('general')" class="btn-outline">一般ユーザーでログイン</button>
+                    <button onclick="mockLogin('admin')" class="btn-outline">管理者でログイン</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin View -->
+        <div id="admin-view" class="view">
+            <header class="app-header admin-header">
+                <h1>管理画面</h1>
+                <button onclick="logout()" class="btn-text">ログアウト</button>
+            </header>
+            <div class="content-scroll admin-content">
+                <div class="admin-card">
+                    <h3>ユーザー管理</h3>
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>名前</th>
+                                <th>タイプ</th>
+                                <th>ステータス</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-user-list">
+                            <!-- Mock Data -->
+                            <tr>
+                                <td>001</td>
+                                <td>Taro Tanaka</td>
+                                <td>General</td>
+                                <td>Active</td>
+                            </tr>
+                            <tr>
+                                <td>002</td>
+                                <td>Admin User</td>
+                                <td>Admin</td>
+                                <td>Active</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="admin-card">
+                    <h3>チャット管理 (全ルーム表示)</h3>
+                    <p>管理者権限ですべてのチャットを閲覧できます。</p>
+                    <button class="btn-submit" onclick="fetchAllChatsForAdmin()">全チャットをロード</button>
+                    <div id="admin-chat-list" class="admin-table" style="margin-top:15px"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Home View -->
+        <div id="home-view" class="view">
+            <header class="app-header">
+                <h1>ホーム</h1>
+                <div class="header-icons">
+                    <i class="fa-solid fa-gear"></i>
+                    <i class="fa-solid fa-user-plus" id="add-friend-btn"></i>
+                </div>
+            </header>
+            <div class="content-scroll" id="home-content">
+                <!-- User Profile -->
+                <div class="my-profile">
+                    <div class="avatar-large" style="background-image: url('https://i.pravatar.cc/150?u=me')"></div>
+                    <div class="profile-info">
+                        <span class="profile-name">Me</span>
+                        <span class="profile-status">Status message...</span>
+                    </div>
+                </div>
+
+                <div class="list-section-header">友達 <span id="friend-count">0</span></div>
+                <div class="friend-list" id="friend-list">
+                    <!-- Friends injected here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Schedule View -->
+        <div id="schedule-view" class="view">
+            <header class="app-header">
+                <h1>予定</h1>
+                <div class="header-icons">
+                    <i class="fa-solid fa-calendar-plus"></i>
+                </div>
+            </header>
+            <div class="content-scroll" id="schedule-list">
+                <!-- Schedule items injected here -->
+                <div class="empty-state">予定はありません</div>
+            </div>
+        </div>
+
+        <!-- Settings View -->
+        <div id="settings-view" class="view">
+            <header class="app-header">
+                <h1>設定</h1>
+            </header>
+            <div class="content-scroll settings-list">
+                <div class="settings-section">
+                    <div class="settings-item">
+                        <div class="settings-label">
+                            <span class="settings-name">プライバシー機能</span>
+                            <span class="settings-desc">プロフィール等の公開範囲を制限します</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="setting-privacy">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="settings-item">
+                        <div class="settings-label">
+                            <span class="settings-name">スクショ防止機能</span>
+                            <span class="settings-desc">チャット画面のキャプチャを防止します</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="setting-screenshot">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="settings-item">
+                        <div class="settings-label">
+                            <span class="settings-name">メッセージ自動削除</span>
+                            <span class="settings-desc">一定時間後にメッセージを削除します</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="setting-autodelete">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="settings-item">
+                        <div class="settings-label">
+                            <span class="settings-name">ID検索</span>
+                            <span class="settings-desc">IDによる検索を許可します</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="setting-idsearch" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat List View -->
+        <div id="chat-list-view" class="view">
+            <header class="app-header">
+                <div class="header-left">
+                    <h1>チャット</h1>
+                </div>
+                <div class="header-icons">
+                    <span id="user-name"></span>
+                    <button id="logout-btn" class="icon-btn" onclick="logout()" title="ログアウト">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                    </button>
+                    <!-- <i class="fa-solid fa-magnifying-glass"></i> -->
+                    <i class="fa-regular fa-square-plus" id="add-friend-btn"></i>
+                </div>
+            </header>
+            <div class="chat-list" id="chat-list">
+                <!-- Chat items will be injected here via JS -->
+            </div>
+        </div>
+
+        <!-- Chat Room View -->
+        <div id="chat-room-view" class="view">
+            <header class="chat-header">
+                <button id="back-btn" class="icon-btn"><i class="fa-solid fa-chevron-left"></i></button>
+                <h2 id="chat-title">User Name</h2>
+                <div class="header-icons">
+                    <i class="fa-solid fa-phone"></i>
+                    <i class="fa-solid fa-bars"></i>
+                </div>
+            </header>
+            <div class="messages-container" id="messages-container">
+                <!-- Messages will be injected here -->
+            </div>
+            <div class="input-area">
+                <button class="icon-btn" id="add-event-btn"><i class="fa-solid fa-plus"></i></button>
+                <div class="input-wrapper">
+                    <input type="text" id="message-input" placeholder="Enter message">
+                    <button class="icon-btn smile-btn"><i class="fa-regular fa-face-smile"></i></button>
+                </div>
+                <button id="send-btn" class="send-btn"><i class="fa-solid fa-paper-plane"></i></button>
+            </div>
+        </div>
+
+        <!-- Shared Bottom Nav -->
+        <nav class="bottom-nav" id="main-nav">
+            <a href="#" class="nav-item" data-target="home-view">
+                <i class="fa-solid fa-house"></i>
+                <span>ホーム</span>
+            </a>
+            <a href="#" class="nav-item active" data-target="chat-list-view">
+                <i class="fa-solid fa-comment"></i>
+                <span>チャット</span>
+                <span class="badge">9+</span>
+            </a>
+            <a href="#" class="nav-item" data-target="schedule-view">
+                <i class="fa-regular fa-calendar-days"></i>
+                <span>予定</span>
+            </a>
+            <a href="#" class="nav-item" data-target="settings-view">
+                <i class="fa-solid fa-gear"></i>
+                <span>設定</span>
+            </a>
+        </nav>
+
+
+        <!-- Reminder Modal -->
+        <div id="reminder-modal" class="modal">
+            <div class="modal-content">
+                <h3>予定を作成</h3>
+                <form id="reminder-form">
+                    <div class="form-group">
+                        <label>日付</label>
+                        <input type="date" id="event-date" required>
+                    </div>
+                    <div class="form-group">
+                        <label>時間</label>
+                        <input type="time" id="event-time" required>
+                    </div>
+                    <div class="form-group">
+                        <label>場所</label>
+                        <input type="text" id="event-location" placeholder="場所を入力" required>
+                    </div>
+                    <div class="form-group">
+                        <label>詳細 (任意)</label>
+                        <textarea id="event-details" placeholder="詳細を入力"></textarea>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn-cancel" id="close-modal-btn">キャンセル</button>
+                        <button type="submit" class="btn-submit">送信</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ID Search Modal -->
+        <div id="search-modal" class="modal">
+            <div class="modal-content">
+                <h3>友達検索</h3>
+                <div class="search-input-wrapper">
+                    <input type="text" id="id-input" placeholder="IDを入力してください">
+                    <button id="search-submit-btn"><i class="fa-solid fa-magnifying-glass"></i></button>
+                </div>
+                <div id="search-result" class="search-result">
+                    <!-- Result injected here -->
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" id="close-search-btn">閉じる</button>
+                </div>
+            </div>
+        </div>
+
+    </div> <!-- Closing #app -->
+    <script src="app.js"></script>
+</body>
+
+</html>
