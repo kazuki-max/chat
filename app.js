@@ -56,7 +56,9 @@ async function fetchProfile() {
             currentUser.name = data.full_name || 'Me';
             currentUser.avatar = data.avatar_url;
             currentUser.status = data.status_message;
+            currentUser.userId = data.user_id_search;
             updateMyProfileUI();
+            updateSettingsUI();
         }
     }
 }
@@ -77,9 +79,15 @@ window.mockLogin = async function (role) {
     // Hide Login
     loginView.classList.remove('active');
 
+    // Show navigation bar on login
+    const mainNav = document.getElementById('main-nav');
+    if (mainNav) mainNav.style.display = 'flex';
+
     if (role === 'admin') {
         // Show Admin
         adminView.classList.add('active');
+        // Hide nav for admin view
+        if (mainNav) mainNav.style.display = 'none';
     } else {
         // Show Home (Default App Flow)
         chatListView.classList.add('active');
@@ -182,14 +190,377 @@ async function fetchChats() {
 }
 
 function updateMyProfileUI() {
-    const nameData = document.querySelector('.my-profile .profile-name');
-    const statusData = document.querySelector('.my-profile .profile-status');
-    const avatarData = document.querySelector('.my-profile .avatar-large');
+    const nameData = document.getElementById('my-name') || document.querySelector('.my-profile .profile-name');
+    const statusData = document.getElementById('my-status') || document.querySelector('.my-profile .profile-status');
+    const avatarData = document.getElementById('my-avatar') || document.querySelector('.my-profile .avatar-large');
 
-    if (nameData) nameData.textContent = currentUser.name;
-    if (statusData) statusData.textContent = currentUser.status || '';
-    if (avatarData && currentUser.avatar) {
+    if (nameData && currentUser) nameData.textContent = currentUser.name || 'Me';
+    if (statusData && currentUser) statusData.textContent = currentUser.status || 'ステータスメッセージを追加';
+    if (avatarData && currentUser && currentUser.avatar) {
         avatarData.style.backgroundImage = `url('${currentUser.avatar}')`;
+    }
+}
+
+// Update Settings UI with user ID
+function updateSettingsUI() {
+    const userIdDisplay = document.getElementById('user-id-display');
+    if (userIdDisplay && currentUser && currentUser.userId) {
+        userIdDisplay.textContent = currentUser.userId;
+    }
+}
+
+// Update User ID in Supabase
+window.updateUserId = async function () {
+    if (!supabaseClient || !currentUser) {
+        alert('ログインしてください');
+        return;
+    }
+
+    const { value: newId } = await Swal.fire({
+        title: 'IDを変更',
+        input: 'text',
+        inputLabel: '新しいID (英数字とアンダースコアのみ)',
+        inputValue: currentUser.userId || '',
+        inputPlaceholder: 'user_xxxxx',
+        showCancelButton: true,
+        confirmButtonText: '変更',
+        cancelButtonText: 'キャンセル',
+        inputValidator: (value) => {
+            if (!value) return '値を入力してください';
+            if (!/^[a-zA-Z0-9_]+$/.test(value)) return '英数字とアンダースコアのみ使用可能です';
+            if (value.length < 3) return '3文字以上で入力してください';
+            if (value.length > 20) return '20文字以下で入力してください';
+        }
+    });
+
+    if (!newId) return;
+
+    try {
+        // Check if ID is already taken
+        const { data: existingUser } = await supabaseClient
+            .from('profiles')
+            .select('id')
+            .eq('user_id_search', newId)
+            .neq('id', currentUser.id)
+            .single();
+
+        if (existingUser) {
+            Swal.fire({
+                icon: 'error',
+                title: 'エラー',
+                text: 'このIDは既に使用されています'
+            });
+            return;
+        }
+
+        // Update ID
+        const { error } = await supabaseClient
+            .from('profiles')
+            .update({ user_id_search: newId })
+            .eq('id', currentUser.id);
+
+        if (error) throw error;
+
+        currentUser.userId = newId;
+        updateSettingsUI();
+
+        Swal.fire({
+            icon: 'success',
+            title: '変更完了',
+            text: 'IDが変更されました',
+            timer: 1500,
+            showConfirmButton: false
+        });
+    } catch (err) {
+        console.error('ID update error:', err);
+        Swal.fire({
+            icon: 'error',
+            title: 'エラー',
+            text: err.message
+        });
+    }
+};
+
+// Search user by ID in Supabase
+async function searchUserById(query) {
+    if (!supabaseClient) {
+        return { error: 'Supabaseに接続されていません' };
+    }
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('profiles')
+            .select('id, full_name, avatar_url, user_id_search')
+            .eq('user_id_search', query)
+            .single();
+
+        if (error && error.code !== 'PGRST116') { // PGRST116 = no rows
+            throw error;
+        }
+
+        return { data };
+    } catch (err) {
+        console.error('Search error:', err);
+        return { error: err.message };
+    }
+}
+
+// Add friend to Supabase
+window.addFriendById = async function (friendId) {
+    if (!supabaseClient || !currentUser) {
+        alert('ログインしてください');
+        return;
+    }
+
+    try {
+        // Check if already friends
+        const { data: existing } = await supabaseClient
+            .from('friends')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .eq('friend_id', friendId)
+            .single();
+
+        if (existing) {
+            alert('すでに友達です');
+            return;
+        }
+
+        // Add friend
+        const { error } = await supabaseClient
+            .from('friends')
+            .insert({
+                user_id: currentUser.id,
+                friend_id: friendId
+            });
+
+        if (error) throw error;
+
+        // Refresh friends list
+        await fetchFriends();
+
+        Swal.fire({
+            icon: 'success',
+            title: '友達追加完了',
+            timer: 1500,
+            showConfirmButton: false
+        });
+
+        // Close modal
+        searchModal.classList.remove('active');
+        searchResultContainer.innerHTML = '';
+        idInput.value = '';
+    } catch (err) {
+        console.error('Add friend error:', err);
+        alert('エラー: ' + err.message);
+    }
+};
+
+// Profile Edit Modal
+let profileEditModal = null;
+let avatarPreview = null;
+let editNicknameInput = null;
+let editStatusInput = null;
+let avatarFileInput = null;
+let pendingAvatarFile = null;
+
+window.openProfileEditModal = function () {
+    profileEditModal = profileEditModal || document.getElementById('profile-edit-modal');
+    avatarPreview = avatarPreview || document.getElementById('avatar-preview');
+    editNicknameInput = editNicknameInput || document.getElementById('edit-nickname');
+    editStatusInput = editStatusInput || document.getElementById('edit-status');
+    avatarFileInput = avatarFileInput || document.getElementById('avatar-input');
+
+    if (!profileEditModal) return;
+
+    // Populate current values
+    if (currentUser) {
+        editNicknameInput.value = currentUser.name || '';
+        editStatusInput.value = currentUser.status || '';
+        if (currentUser.avatar) {
+            avatarPreview.style.backgroundImage = `url('${currentUser.avatar}')`;
+        }
+    }
+
+    // Update character count
+    const charCount = document.getElementById('status-char-count');
+    if (charCount) charCount.textContent = editStatusInput.value.length;
+
+    // Reset pending avatar
+    pendingAvatarFile = null;
+
+    profileEditModal.classList.add('active');
+};
+
+window.closeProfileEditModal = function () {
+    if (profileEditModal) {
+        profileEditModal.classList.remove('active');
+    }
+    pendingAvatarFile = null;
+};
+
+// Handle avatar file selection
+function handleAvatarSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+        alert('画像ファイルを選択してください');
+        return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+        alert('ファイルサイズは2MB以下にしてください');
+        return;
+    }
+
+    pendingAvatarFile = file;
+
+    // Preview the image
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        avatarPreview.style.backgroundImage = `url('${e.target.result}')`;
+    };
+    reader.readAsDataURL(file);
+}
+
+// Upload avatar to Supabase Storage
+async function uploadAvatar(file) {
+    if (!supabaseClient || !currentUser) return null;
+
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${currentUser.id}-${Date.now()}.${fileExt}`;
+    const filePath = `avatars/${fileName}`;
+
+    const { data, error } = await supabaseClient.storage
+        .from('avatars')
+        .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: true
+        });
+
+    if (error) {
+        console.error('Avatar upload error:', error);
+        // If storage bucket doesn't exist, use a data URL instead
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // Get public URL
+    const { data: urlData } = supabaseClient.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+    return urlData.publicUrl;
+}
+
+// Save Profile
+window.saveProfile = async function (event) {
+    event.preventDefault();
+
+    if (!supabaseClient || !currentUser) {
+        alert('ログインしてください');
+        return;
+    }
+
+    const newName = editNicknameInput.value.trim();
+    const newStatus = editStatusInput.value.trim();
+
+    if (!newName) {
+        alert('ニックネームを入力してください');
+        return;
+    }
+
+    try {
+        let avatarUrl = currentUser.avatar;
+
+        // Upload new avatar if selected
+        if (pendingAvatarFile) {
+            Swal.fire({
+                title: 'アップロード中...',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+
+            avatarUrl = await uploadAvatar(pendingAvatarFile);
+
+            Swal.close();
+        }
+
+        // Update profile in Supabase
+        const { error } = await supabaseClient
+            .from('profiles')
+            .update({
+                full_name: newName,
+                status_message: newStatus,
+                avatar_url: avatarUrl
+            })
+            .eq('id', currentUser.id);
+
+        if (error) throw error;
+
+        // Update local state
+        currentUser.name = newName;
+        currentUser.status = newStatus;
+        currentUser.avatar = avatarUrl;
+
+        // Update UI
+        updateMyProfileUI();
+        closeProfileEditModal();
+
+        Swal.fire({
+            icon: 'success',
+            title: 'プロフィールを更新しました',
+            timer: 1500,
+            showConfirmButton: false
+        });
+
+    } catch (err) {
+        console.error('Profile update error:', err);
+        Swal.fire({
+            icon: 'error',
+            title: 'エラー',
+            text: err.message
+        });
+    }
+};
+
+// Setup profile edit listeners
+function setupProfileEditListeners() {
+    const closeBtn = document.getElementById('close-profile-modal-btn');
+    const form = document.getElementById('profile-edit-form');
+    const statusInput = document.getElementById('edit-status');
+    const avatarInput = document.getElementById('avatar-input');
+    const avatarPreviewEl = document.getElementById('avatar-preview');
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeProfileEditModal);
+    }
+
+    if (form) {
+        form.addEventListener('submit', saveProfile);
+    }
+
+    if (statusInput) {
+        statusInput.addEventListener('input', (e) => {
+            const charCount = document.getElementById('status-char-count');
+            if (charCount) charCount.textContent = e.target.value.length;
+        });
+    }
+
+    if (avatarInput) {
+        avatarInput.addEventListener('change', handleAvatarSelect);
+    }
+
+    if (avatarPreviewEl) {
+        avatarPreviewEl.addEventListener('click', () => {
+            document.getElementById('avatar-input').click();
+        });
     }
 }
 
@@ -300,6 +671,7 @@ function init() {
     try {
         loadDOMElements(); // Must be first
         setupEventListeners(); // UI Event Listeners
+        setupProfileEditListeners(); // Profile editing
 
         // Supabase Auth Listener (Centralized Auth Logic)
         if (supabaseClient) {
@@ -563,17 +935,26 @@ window.handleSocialLogin = async function (provider) {
 
 // Logout
 window.logout = async function () {
+    // Clear mock flag first so SIGNED_OUT event is not ignored
+    if (currentUser && currentUser.isMock) {
+        currentUser.isMock = false;
+    }
+
     if (supabaseClient) {
         const { error } = await supabaseClient.auth.signOut();
         if (error) console.error('Logout failed:', error);
         // onAuthStateChange('SIGNED_OUT') will handle the UI
-    } else {
-        // Fallback for mock mode
-        currentUser = null;
-        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-        loginView.classList.add('active');
-        authForm.reset();
     }
+
+    // Always reset UI for both mock and real mode
+    currentUser = null;
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    loginView.classList.add('active');
+    if (authForm) authForm.reset();
+
+    // Hide navigation bar on logout
+    const mainNav = document.getElementById('main-nav');
+    if (mainNav) mainNav.style.display = 'none';
 };
 
 // Render Friend List
@@ -610,6 +991,10 @@ function renderFriendList() {
 // Render Chat List
 function renderChatList() {
     chatListContainer.innerHTML = '';
+
+    // Calculate total unread count for nav badge
+    let totalUnread = 0;
+
     chats.forEach(chat => {
         const item = document.createElement('div');
         item.className = 'chat-item';
@@ -618,6 +1003,8 @@ function renderChatList() {
         const unreadHTML = chat.unread > 0
             ? `<div class="unread-badge">${chat.unread}</div>`
             : '';
+
+        totalUnread += chat.unread || 0;
 
         item.innerHTML = `
             <div class="avatar" style="background-image: url('${chat.avatar}')"></div>
@@ -634,6 +1021,22 @@ function renderChatList() {
         `;
         chatListContainer.appendChild(item);
     });
+
+    // Update navigation badge
+    updateChatBadge(totalUnread);
+}
+
+// Update Chat Badge in Navigation
+function updateChatBadge(count) {
+    const badge = document.getElementById('chat-badge');
+    if (!badge) return;
+
+    if (count > 0) {
+        badge.textContent = count > 9 ? '9+' : count.toString();
+        badge.style.display = 'block';
+    } else {
+        badge.style.display = 'none';
+    }
 }
 
 // Render Schedule
@@ -1126,7 +1529,7 @@ function setupEventListeners() {
     }
 
     if (searchSubmitBtn) {
-        searchSubmitBtn.addEventListener('click', () => {
+        searchSubmitBtn.addEventListener('click', async () => {
             const query = idInput.value.trim();
             if (!query) return;
 
@@ -1136,23 +1539,39 @@ function setupEventListeners() {
                 return;
             }
 
-            // Search in friends first
-            const existingFriend = friends.find(f => f.userId === query);
-            if (existingFriend) {
-                searchResultContainer.innerHTML = '<div style="text-align:center; padding:20px; color:#999;">すでに友達です</div>';
+            // Don't search for yourself
+            if (currentUser && currentUser.userId === query) {
+                searchResultContainer.innerHTML = '<div style="text-align:center; padding:20px; color:#999;">自分自身は検索できません</div>';
                 return;
             }
 
-            // Search in others
-            const foundUser = otherUsers.find(u => u.userId === query);
+            // Show loading
+            searchResultContainer.innerHTML = '<div style="text-align:center; padding:20px; color:#666;"><i class="fa-solid fa-spinner fa-spin"></i> 検索中...</div>';
+
+            // Search in Supabase
+            const { data: foundUser, error } = await searchUserById(query);
+
+            if (error) {
+                searchResultContainer.innerHTML = `<div style="text-align:center; padding:20px; color:#f00;">エラー: ${error}</div>`;
+                return;
+            }
 
             if (foundUser) {
+                // Check if already friends
+                const isAlreadyFriend = friends.some(f => f.id === foundUser.id);
+
+                if (isAlreadyFriend) {
+                    searchResultContainer.innerHTML = '<div style="text-align:center; padding:20px; color:#999;">すでに友達です</div>';
+                    return;
+                }
+
+                const avatarUrl = foundUser.avatar_url || `https://i.pravatar.cc/150?u=${foundUser.id}`;
                 searchResultContainer.innerHTML = `
                     <div class="result-card">
-                        <div class="result-avatar" style="background-image: url('${foundUser.avatar}')"></div>
-                        <div class="result-name">${foundUser.name}</div>
-                        <div class="result-id">ID: ${foundUser.userId}</div>
-                        <button class="join-btn" onclick="addFriend(${foundUser.id})">友達追加する</button>
+                        <div class="result-avatar" style="background-image: url('${avatarUrl}')"></div>
+                        <div class="result-name">${foundUser.full_name || 'ユーザー'}</div>
+                        <div class="result-id">ID: ${foundUser.user_id_search}</div>
+                        <button class="join-btn" onclick="addFriendById('${foundUser.id}')">友達追加する</button>
                     </div>
                 `;
             } else {

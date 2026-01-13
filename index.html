@@ -10,8 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="style.css" rel="stylesheet">
-    <script src="https://kit.fontawesome.com/your-code.js" crossorigin="anonymous"></script>
-    <!-- FontAwesome Placeholder -->
+    <!-- FontAwesome CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -134,13 +133,15 @@
                 </div>
             </header>
             <div class="content-scroll" id="home-content">
-                <!-- User Profile -->
-                <div class="my-profile">
-                    <div class="avatar-large" style="background-image: url('https://i.pravatar.cc/150?u=me')"></div>
+                <!-- User Profile (Clickable for editing) -->
+                <div class="my-profile" onclick="openProfileEditModal()" style="cursor: pointer;">
+                    <div class="avatar-large" id="my-avatar"
+                        style="background-image: url('https://i.pravatar.cc/150?u=me')"></div>
                     <div class="profile-info">
-                        <span class="profile-name">Me</span>
-                        <span class="profile-status">Status message...</span>
+                        <span class="profile-name" id="my-name">Me</span>
+                        <span class="profile-status" id="my-status">Status message...</span>
                     </div>
+                    <i class="fa-solid fa-chevron-right profile-edit-icon"></i>
                 </div>
 
                 <div class="list-section-header">友達 <span id="friend-count">0</span></div>
@@ -170,6 +171,20 @@
                 <h1>設定</h1>
             </header>
             <div class="content-scroll settings-list">
+                <!-- User ID Section -->
+                <div class="settings-section user-id-section">
+                    <div class="settings-item" onclick="updateUserId()" style="cursor: pointer;">
+                        <div class="settings-label">
+                            <span class="settings-name">マイID</span>
+                            <span class="settings-desc user-id-value">
+                                <span id="user-id-display">読み込み中...</span>
+                                <i class="fa-solid fa-pen-to-square" style="margin-left: 8px; color: #06C755;"></i>
+                            </span>
+                        </div>
+                        <i class="fa-solid fa-chevron-right" style="color: #999;"></i>
+                    </div>
+                </div>
+
                 <div class="settings-section">
                     <div class="settings-item">
                         <div class="settings-label">
@@ -258,8 +273,8 @@
             </div>
         </div>
 
-        <!-- Shared Bottom Nav -->
-        <nav class="bottom-nav" id="main-nav">
+        <!-- Shared Bottom Nav (hidden by default, shown after login) -->
+        <nav class="bottom-nav" id="main-nav" style="display: none;">
             <a href="#" class="nav-item" data-target="home-view">
                 <i class="fa-solid fa-house"></i>
                 <span>ホーム</span>
@@ -267,7 +282,7 @@
             <a href="#" class="nav-item active" data-target="chat-list-view">
                 <i class="fa-solid fa-comment"></i>
                 <span>チャット</span>
-                <span class="badge">9+</span>
+                <span class="badge" id="chat-badge" style="display: none;"></span>
             </a>
             <a href="#" class="nav-item" data-target="schedule-view">
                 <i class="fa-regular fa-calendar-days"></i>
@@ -323,6 +338,44 @@
                 <div class="modal-actions">
                     <button type="button" class="btn-cancel" id="close-search-btn">閉じる</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- Profile Edit Modal -->
+        <div id="profile-edit-modal" class="modal">
+            <div class="modal-content profile-edit-content">
+                <h3>プロフィール編集</h3>
+
+                <!-- Avatar Preview and Change -->
+                <div class="profile-avatar-edit">
+                    <div class="avatar-preview" id="avatar-preview"
+                        style="background-image: url('https://i.pravatar.cc/150?u=me')">
+                        <div class="avatar-overlay">
+                            <i class="fa-solid fa-camera"></i>
+                        </div>
+                    </div>
+                    <input type="file" id="avatar-input" accept="image/*" style="display: none;">
+                    <button type="button" class="btn-avatar-change"
+                        onclick="document.getElementById('avatar-input').click()">
+                        <i class="fa-solid fa-image"></i> 画像を変更
+                    </button>
+                </div>
+
+                <form id="profile-edit-form">
+                    <div class="form-group">
+                        <label>ニックネーム</label>
+                        <input type="text" id="edit-nickname" placeholder="名前を入力" maxlength="20" required>
+                    </div>
+                    <div class="form-group">
+                        <label>ステータスメッセージ</label>
+                        <textarea id="edit-status" placeholder="一言メッセージを入力" maxlength="100" rows="3"></textarea>
+                        <span class="char-count"><span id="status-char-count">0</span>/100</span>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn-cancel" id="close-profile-modal-btn">キャンセル</button>
+                        <button type="submit" class="btn-submit">保存</button>
+                    </div>
+                </form>
             </div>
         </div>
 
