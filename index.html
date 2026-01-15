@@ -39,35 +39,114 @@
                     <i class="fa-solid fa-comments"></i>
                     <h1>ChatApp</h1>
                 </div>
-                <h2 id="auth-title">ログイン</h2>
-                <form id="auth-form">
-                    <input type="text" id="reg-name" placeholder="名前 (表示名)" style="display:none;">
-                    <input type="email" id="auth-email" placeholder="メールアドレス" required>
-                    <input type="password" id="auth-password" placeholder="パスワード" required>
 
-                    <!-- OTP Input (Hidden by default) -->
-                    <div id="otp-group" style="display: none; margin-bottom: 10px;">
-                        <input type="text" id="auth-otp" placeholder="認証コード (メールを確認)" style="width: 100%;">
-                    </div>
+                <!-- Login Form -->
+                <div id="auth-mode-login" class="auth-mode active">
+                    <h2>ログイン</h2>
 
-                    <button type="submit" class="btn-submit" id="auth-submit-btn">ログイン</button>
-
-                    <div class="social-login">
-                        <p class="social-text">または</p>
-                        <div class="social-btns">
-                            <button type="button" class="social-btn google" onclick="handleSocialLogin('google')">
-                                <i class="fa-brands fa-google"></i> Google
+                    <!-- Step 1: Email Input -->
+                    <div id="login-step-email" class="auth-step active">
+                        <p class="auth-desc">メールアドレスを入力して認証コードを受け取ります</p>
+                        <form id="login-email-form">
+                            <input type="email" id="login-email" placeholder="メールアドレス" required>
+                            <button type="submit" class="btn-submit">
+                                <i class="fa-solid fa-paper-plane"></i> 認証コードを送信
                             </button>
-                            <button type="button" class="social-btn twitter" onclick="handleSocialLogin('twitter')">
-                                <i class="fa-brands fa-twitter"></i> Twitter
-                            </button>
+                        </form>
+
+                        <div class="social-login">
+                            <p class="social-text">または</p>
+                            <div class="social-btns">
+                                <button type="button" class="social-btn google" onclick="handleSocialLogin('google')">
+                                    <i class="fa-brands fa-google"></i> Googleでログイン
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </form>
 
-                <div class="auth-toggle">
-                    <span id="auth-toggle-text">アカウントをお持ちでないですか？</span>
-                    <button type="button" id="auth-toggle-btn" class="text-link">新規登録</button>
+                    <!-- Step 2: OTP Input -->
+                    <div id="login-step-otp" class="auth-step">
+                        <p class="auth-desc">
+                            <span id="login-email-display"></span> に送信された<br>6桁の認証コードを入力してください
+                        </p>
+                        <form id="login-otp-form">
+                            <div class="otp-input-group" id="login-otp-inputs">
+                                <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric">
+                                <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric">
+                                <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric">
+                                <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric">
+                                <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric">
+                                <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric">
+                            </div>
+                            <button type="submit" class="btn-submit">
+                                <i class="fa-solid fa-check"></i> ログイン
+                            </button>
+                        </form>
+                        <div class="otp-actions">
+                            <button type="button" class="text-link" onclick="resendOtp('login')">コードを再送信</button>
+                            <button type="button" class="text-link" onclick="backToEmail('login')">メールアドレスを変更</button>
+                        </div>
+                    </div>
+
+                    <div class="auth-toggle">
+                        <span>アカウントをお持ちでないですか？</span>
+                        <button type="button" class="text-link" onclick="switchAuthMode('register')">新規登録</button>
+                    </div>
+                </div>
+
+                <!-- Register Form -->
+                <div id="auth-mode-register" class="auth-mode">
+                    <h2>新規登録</h2>
+
+                    <!-- Step 1: Name & Email Input -->
+                    <div id="register-step-email" class="auth-step active">
+                        <p class="auth-desc">アカウント情報を入力してください</p>
+                        <form id="register-email-form">
+                            <input type="text" id="register-name" placeholder="ニックネーム" required>
+                            <input type="email" id="register-email" placeholder="メールアドレス" required>
+                            <button type="submit" class="btn-submit">
+                                <i class="fa-solid fa-paper-plane"></i> 認証コードを送信
+                            </button>
+                        </form>
+
+                        <div class="social-login">
+                            <p class="social-text">または</p>
+                            <div class="social-btns">
+                                <button type="button" class="social-btn google" onclick="handleSocialLogin('google')">
+                                    <i class="fa-brands fa-google"></i> Googleで登録
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: OTP Input -->
+                    <div id="register-step-otp" class="auth-step">
+                        <p class="auth-desc">
+                            <span id="register-email-display"></span> に送信された<br>6桁の認証コードを入力してください
+                        </p>
+                        <form id="register-otp-form">
+                            <div class="otp-input-group" id="register-otp-inputs">
+                                <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric">
+                                <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric">
+                                <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric">
+                                <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric">
+                                <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric">
+                                <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric">
+                            </div>
+                            <button type="submit" class="btn-submit">
+                                <i class="fa-solid fa-user-plus"></i> アカウント作成
+                            </button>
+                        </form>
+                        <div class="otp-actions">
+                            <button type="button" class="text-link" onclick="resendOtp('register')">コードを再送信</button>
+                            <button type="button" class="text-link" onclick="backToEmail('register')">情報を変更</button>
+                        </div>
+                    </div>
+
+                    <div class="auth-toggle">
+                        <span>すでにアカウントをお持ちですか？</span>
+                        <button type="button" class="text-link" onclick="switchAuthMode('login')">ログイン</button>
+                    </div>
                 </div>
 
                 <div class="mock-login-actions">
@@ -81,44 +160,85 @@
         <!-- Admin View -->
         <div id="admin-view" class="view">
             <header class="app-header admin-header">
-                <h1>管理画面</h1>
+                <h1>🔐 管理画面</h1>
                 <button onclick="logout()" class="btn-text">ログアウト</button>
             </header>
+
+            <!-- Admin Tabs -->
+            <div class="admin-tabs">
+                <button class="admin-tab active" data-tab="users" onclick="switchAdminTab('users')">
+                    <i class="fa-solid fa-users"></i> ユーザー管理
+                </button>
+                <button class="admin-tab" data-tab="chats" onclick="switchAdminTab('chats')">
+                    <i class="fa-solid fa-comments"></i> チャット管理
+                </button>
+                <button class="admin-tab" data-tab="messages" onclick="switchAdminTab('messages')">
+                    <i class="fa-solid fa-eye"></i> メッセージ監視
+                </button>
+            </div>
+
             <div class="content-scroll admin-content">
-                <div class="admin-card">
-                    <h3>ユーザー管理</h3>
-                    <table class="admin-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>名前</th>
-                                <th>タイプ</th>
-                                <th>ステータス</th>
-                            </tr>
-                        </thead>
-                        <tbody id="admin-user-list">
-                            <!-- Mock Data -->
-                            <tr>
-                                <td>001</td>
-                                <td>Taro Tanaka</td>
-                                <td>General</td>
-                                <td>Active</td>
-                            </tr>
-                            <tr>
-                                <td>002</td>
-                                <td>Admin User</td>
-                                <td>Admin</td>
-                                <td>Active</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <!-- Users Tab -->
+                <div id="admin-tab-users" class="admin-tab-content active">
+                    <div class="admin-card">
+                        <div class="admin-card-header">
+                            <h3><i class="fa-solid fa-users"></i> 全ユーザー一覧</h3>
+                            <button class="btn-refresh" onclick="fetchAllUsersForAdmin()">
+                                <i class="fa-solid fa-sync"></i> 更新
+                            </button>
+                        </div>
+                        <div class="admin-stats">
+                            <div class="stat-item">
+                                <span class="stat-value" id="stat-total-users">-</span>
+                                <span class="stat-label">総ユーザー</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value" id="stat-frozen-users">-</span>
+                                <span class="stat-label">凍結中</span>
+                            </div>
+                        </div>
+                        <div id="admin-user-list-container">
+                            <p class="admin-hint">「更新」ボタンをクリックしてユーザーを読み込みます</p>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="admin-card">
-                    <h3>チャット管理 (全ルーム表示)</h3>
-                    <p>管理者権限ですべてのチャットを閲覧できます。</p>
-                    <button class="btn-submit" onclick="fetchAllChatsForAdmin()">全チャットをロード</button>
-                    <div id="admin-chat-list" class="admin-table" style="margin-top:15px"></div>
+                <!-- Chats Tab -->
+                <div id="admin-tab-chats" class="admin-tab-content">
+                    <div class="admin-card">
+                        <div class="admin-card-header">
+                            <h3><i class="fa-solid fa-comments"></i> 全チャットルーム</h3>
+                            <button class="btn-refresh" onclick="fetchAllChatsForAdmin()">
+                                <i class="fa-solid fa-sync"></i> 更新
+                            </button>
+                        </div>
+                        <div class="admin-stats">
+                            <div class="stat-item">
+                                <span class="stat-value" id="stat-total-chats">-</span>
+                                <span class="stat-label">総ルーム数</span>
+                            </div>
+                        </div>
+                        <div id="admin-chat-list">
+                            <p class="admin-hint">「更新」ボタンをクリックしてチャットを読み込みます</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Messages Tab -->
+                <div id="admin-tab-messages" class="admin-tab-content">
+                    <div class="admin-card">
+                        <div class="admin-card-header">
+                            <h3><i class="fa-solid fa-eye"></i> メッセージ監視</h3>
+                        </div>
+                        <div class="admin-search-bar">
+                            <select id="admin-chat-select" onchange="loadChatMessagesForAdmin()">
+                                <option value="">チャットルームを選択...</option>
+                            </select>
+                        </div>
+                        <div id="admin-messages-container" class="admin-messages">
+                            <p class="admin-hint">チャットルームを選択するとメッセージが表示されます</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

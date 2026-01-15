@@ -634,16 +634,18 @@ function loadDOMElements() {
     chatRoomView = get('chat-room-view');
     navItems = document.querySelectorAll('.nav-item');
 
-    authForm = get('auth-form');
-    authTitle = get('auth-title');
-    authSubmitBtn = get('auth-submit-btn');
-    regNameInput = get('reg-name');
-    authEmailInput = get('auth-email');
-    authPassInput = get('auth-password');
-    authOtpInput = get('auth-otp');
-    otpGroup = get('otp-group');
-    authToggleBtn = get('auth-toggle-btn');
-    authToggleText = get('auth-toggle-text');
+    // Auth elements - use optional lookups since form structure changed
+    const getOptional = (id) => document.getElementById(id);
+    authForm = getOptional('auth-form'); // No longer exists - optional
+    authTitle = getOptional('auth-title');
+    authSubmitBtn = getOptional('auth-submit-btn');
+    regNameInput = getOptional('reg-name');
+    authEmailInput = getOptional('auth-email');
+    authPassInput = getOptional('auth-password');
+    authOtpInput = getOptional('auth-otp');
+    otpGroup = getOptional('otp-group');
+    authToggleBtn = getOptional('auth-toggle-btn');
+    authToggleText = getOptional('auth-toggle-text');
 
     chatTitle = get('chat-title');
     messagesContainer = get('messages-container');
@@ -761,139 +763,171 @@ function init() {
 function setupAuthListeners() {
     console.log('Setting up Auth Listeners...');
 
-    if (authToggleBtn) {
-        authToggleBtn.addEventListener('click', () => {
-            console.log('Auth Toggle Clicked. Current Mode:', isRegisterMode ? 'Register' : 'Login');
-            isRegisterMode = !isRegisterMode;
-            isOtpMode = false; // Reset OTP mode
-            if (otpGroup) otpGroup.style.display = 'none';
+    // State
+    let pendingEmail = '';
+    let pendingName = '';
 
-            if (isRegisterMode) {
-                authTitle.textContent = '新規登録';
-                authSubmitBtn.textContent = '登録';
-                if (regNameInput) {
-                    regNameInput.style.display = 'block';
-                    regNameInput.required = true;
+    // Setup OTP input auto-focus for both forms
+    setupOtpInputs('login-otp-inputs');
+    setupOtpInputs('register-otp-inputs');
+
+    function setupOtpInputs(containerId) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        const inputs = container.querySelectorAll('input');
+        inputs.forEach((input, index) => {
+            input.addEventListener('input', (e) => {
+                if (e.target.value && index < inputs.length - 1) {
+                    inputs[index + 1].focus();
                 }
-                authToggleText.textContent = 'すでにアカウントをお持ちですか？';
-                authToggleBtn.textContent = 'ログイン';
-            } else {
-                authTitle.textContent = 'ログイン';
-                authSubmitBtn.textContent = 'ログイン';
-                if (regNameInput) {
-                    regNameInput.style.display = 'none';
-                    regNameInput.required = false;
+            });
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && !e.target.value && index > 0) {
+                    inputs[index - 1].focus();
                 }
-                authToggleText.textContent = 'アカウントをお持ちでないですか？';
-                authToggleBtn.textContent = '新規登録';
-            }
+            });
+
+            input.addEventListener('paste', (e) => {
+                e.preventDefault();
+                const paste = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+                paste.split('').forEach((char, i) => {
+                    if (inputs[i]) inputs[i].value = char;
+                });
+            });
         });
-    } else {
-        console.error('Critical: authToggleBtn not found in DOM!');
     }
 
-    if (authForm) {
-        authForm.addEventListener('submit', async (e) => {
+    function getOtpValue(containerId) {
+        const inputs = document.querySelectorAll(`#${containerId} input`);
+        return Array.from(inputs).map(i => i.value).join('');
+    }
+
+    function clearOtpInputs(containerId) {
+        const inputs = document.querySelectorAll(`#${containerId} input`);
+        inputs.forEach(i => i.value = '');
+        if (inputs[0]) inputs[0].focus();
+    }
+
+    // Switch between login/register modes
+    window.switchAuthMode = function (mode) {
+        document.getElementById('auth-mode-login').classList.toggle('active', mode === 'login');
+        document.getElementById('auth-mode-register').classList.toggle('active', mode === 'register');
+
+        // Reset to email step
+        document.getElementById('login-step-email').classList.add('active');
+        document.getElementById('login-step-otp').classList.remove('active');
+        document.getElementById('register-step-email').classList.add('active');
+        document.getElementById('register-step-otp').classList.remove('active');
+    };
+
+    window.backToEmail = function (mode) {
+        document.getElementById(`${mode}-step-email`).classList.add('active');
+        document.getElementById(`${mode}-step-otp`).classList.remove('active');
+    };
+
+    window.resendOtp = async function (mode) {
+        if (!pendingEmail) return;
+        await sendOtpCode(pendingEmail, mode === 'register');
+        Swal.fire({ icon: 'success', title: 'コードを再送信しました', timer: 2000, showConfirmButton: false });
+    };
+
+    function showOtpStep(mode, email) {
+        pendingEmail = email;
+        const display = document.getElementById(`${mode}-email-display`);
+        if (display) display.textContent = email;
+        document.getElementById(`${mode}-step-email`).classList.remove('active');
+        document.getElementById(`${mode}-step-otp`).classList.add('active');
+        clearOtpInputs(`${mode}-otp-inputs`);
+    }
+
+    async function sendOtpCode(email, isSignUp = false, name = '') {
+        if (!supabaseClient) {
+            alert('[模擬モード] 認証コード: 123456');
+            return true;
+        }
+
+        try {
+            Swal.fire({ title: '送信中...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+            const options = { shouldCreateUser: isSignUp };
+            if (isSignUp && name) options.data = { full_name: name };
+
+            const { error } = await supabaseClient.auth.signInWithOtp({ email, options });
+            if (error) throw error;
+
+            Swal.fire({ icon: 'success', title: '認証コードを送信しました', text: `${email} のメールを確認`, timer: 3000, showConfirmButton: false });
+            return true;
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: '送信エラー', text: err.message });
+            return false;
+        }
+    }
+
+    async function verifyOtpCode(email, token, isSignUp = false) {
+        if (!supabaseClient) {
+            if (token === '123456') { mockLogin('general'); return true; }
+            alert('認証コードが正しくありません');
+            return false;
+        }
+
+        try {
+            Swal.fire({ title: '認証中...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            const { error } = await supabaseClient.auth.verifyOtp({ email, token, type: 'email' });
+            if (error) throw error;
+            Swal.fire({ icon: 'success', title: isSignUp ? 'アカウント作成完了' : 'ログイン成功', timer: 1500, showConfirmButton: false });
+            return true;
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: '認証エラー', text: '認証コードが正しくないか、有効期限が切れています' });
+            return false;
+        }
+    }
+
+    // Login email form
+    const loginEmailForm = document.getElementById('login-email-form');
+    if (loginEmailForm) {
+        loginEmailForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            console.log('Auth Form Submitted');
-            const email = authEmailInput.value;
-            const password = authPassInput.value;
-
-            try {
-                if (supabaseClient) {
-                    // --- OTP Verification Mode ---
-                    if (isOtpMode) {
-                        const token = authOtpInput.value.trim();
-                        if (!token) return alert('認証コードを入力してください');
-
-                        const { data, error } = await supabaseClient.auth.verifyOtp({
-                            email,
-                            token,
-                            type: 'signup'
-                        });
-
-                        if (error) throw error;
-
-                        // Auto Login Success
-                        // onAuthStateChange will handle transition
-                        return;
-                    }
-
-                    // --- Registration Mode ---
-                    if (isRegisterMode) {
-                        const name = regNameInput ? regNameInput.value : 'No Name';
-                        const { data, error } = await supabaseClient.auth.signUp({
-                            email: email,
-                            password: password,
-                            options: { data: { full_name: name, role: 'general' } }
-                        });
-
-                        if (error) throw error;
-
-                        // Check if session is established
-                        if (data.session) {
-                            // onAuthStateChange will handle transition
-                        } else {
-                            // Emai Confirmation Required -> Show OTP Input
-                            alert('確認コードを送信しました。メールを確認して入力してください。');
-                            isOtpMode = true;
-                            if (otpGroup) otpGroup.style.display = 'block';
-                            authSubmitBtn.textContent = '認証してログイン';
-
-                            // Safe hide
-                            if (authPassInput && authPassInput.closest('.input-group')) {
-                                authPassInput.closest('.input-group').style.display = 'none';
-                            }
-                            if (regNameInput) regNameInput.style.display = 'none';
-                        }
-
-                    } else {
-                        // --- Login Mode ---
-                        console.log('Authenticating User...');
-
-                        // Trim inputs to prevent whitespace errors
-                        const emailTrimmed = email.trim();
-                        const passwordTrimmed = password.trim();
-
-                        console.log(`Debug: Email='${emailTrimmed}', PasswordLength=${passwordTrimmed.length}`);
-
-                        const { data, error } = await supabaseClient.auth.signInWithPassword({
-                            email: emailTrimmed,
-                            password: passwordTrimmed
-                        });
-
-                        if (error) {
-                            console.error('Supabase Login Failed:', error);
-                            alert('ログインに失敗しました。\n' + error.message);
-                            return;
-                        }
-
-                        console.log('Login Successful');
-                        // onAuthStateChange will handle transition
-                    }
-
-                } else {
-                    // Fallback Simulation
-                    if (isRegisterMode) {
-                        alert('[模擬] 確認コードを送信しました (123456)');
-                        isOtpMode = true;
-                        otpGroup.style.display = 'block';
-                        authSubmitBtn.textContent = '認証してログイン';
-                    } else if (isOtpMode) {
-                        if (authOtpInput.value === '123456') mockLogin('general');
-                        else alert('コードが違います');
-                    } else {
-                        if (email.includes('admin')) mockLogin('admin');
-                        else mockLogin('general');
-                    }
-                }
-            } catch (err) {
-                alert('エラー: ' + err.message);
-                console.error(err);
-            }
+            const email = document.getElementById('login-email').value.trim();
+            if (!email) return;
+            if (await sendOtpCode(email, false)) showOtpStep('login', email);
         });
-    } else {
-        console.error('Critical: authForm not found in DOM!');
+    }
+
+    // Register email form
+    const registerEmailForm = document.getElementById('register-email-form');
+    if (registerEmailForm) {
+        registerEmailForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('register-name').value.trim();
+            const email = document.getElementById('register-email').value.trim();
+            if (!name || !email) return;
+            pendingName = name;
+            if (await sendOtpCode(email, true, name)) showOtpStep('register', email);
+        });
+    }
+
+    // Login OTP form
+    const loginOtpForm = document.getElementById('login-otp-form');
+    if (loginOtpForm) {
+        loginOtpForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const token = getOtpValue('login-otp-inputs');
+            if (token.length !== 6) { Swal.fire({ icon: 'warning', title: '6桁のコードを入力', timer: 2000, showConfirmButton: false }); return; }
+            await verifyOtpCode(pendingEmail, token, false);
+        });
+    }
+
+    // Register OTP form
+    const registerOtpForm = document.getElementById('register-otp-form');
+    if (registerOtpForm) {
+        registerOtpForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const token = getOtpValue('register-otp-inputs');
+            if (token.length !== 6) { Swal.fire({ icon: 'warning', title: '6桁のコードを入力', timer: 2000, showConfirmButton: false }); return; }
+            await verifyOtpCode(pendingEmail, token, true);
+        });
     }
 }
 
@@ -1085,15 +1119,188 @@ function openChat(id) {
     }
 }
 
+// [ADMIN] Switch Tabs
+window.switchAdminTab = function (tabName) {
+    // Update tab buttons
+    document.querySelectorAll('.admin-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.tab === tabName);
+    });
+
+    // Update tab content
+    document.querySelectorAll('.admin-tab-content').forEach(content => {
+        content.classList.toggle('active', content.id === `admin-tab-${tabName}`);
+    });
+
+    // Load data for the tab
+    if (tabName === 'users') {
+        fetchAllUsersForAdmin();
+    } else if (tabName === 'chats') {
+        fetchAllChatsForAdmin();
+    } else if (tabName === 'messages') {
+        loadChatSelectForAdmin();
+    }
+};
+
+// [ADMIN] Fetch All Users
+window.fetchAllUsersForAdmin = async function () {
+    console.log('Admin: Fetching ALL users...');
+    const container = document.getElementById('admin-user-list-container');
+    container.innerHTML = '<p class="admin-hint">読み込み中...</p>';
+
+    if (!supabaseClient) return;
+
+    const { data, error } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Admin Fetch Users Error:', error);
+        container.innerHTML = `<p style="color:#e94560">Error: ${error.message}</p>`;
+        return;
+    }
+
+    console.log('Admin: Users fetched:', data);
+
+    // Update stats
+    const totalUsers = data.length;
+    const frozenUsers = data.filter(u => u.is_frozen).length;
+    document.getElementById('stat-total-users').textContent = totalUsers;
+    document.getElementById('stat-frozen-users').textContent = frozenUsers;
+
+    container.innerHTML = '';
+
+    if (data.length === 0) {
+        container.innerHTML = '<p class="admin-hint">ユーザーがいません</p>';
+        return;
+    }
+
+    data.forEach(user => {
+        const isFrozen = user.is_frozen || false;
+        const isAdmin = user.role === 'admin';
+        const avatarUrl = user.avatar_url || `https://i.pravatar.cc/150?u=${user.id}`;
+
+        const card = document.createElement('div');
+        card.className = 'admin-user-card';
+        card.innerHTML = `
+            <div class="admin-user-avatar" style="background-image: url('${avatarUrl}')"></div>
+            <div class="admin-user-info">
+                <div class="admin-user-name">
+                    ${user.full_name || 'Unknown'}
+                    <span class="admin-user-status ${isFrozen ? 'status-frozen' : 'status-active'}">
+                        ${isFrozen ? '凍結中' : 'アクティブ'}
+                    </span>
+                    ${isAdmin ? '<span class="admin-user-role">Admin</span>' : ''}
+                </div>
+                <div class="admin-user-id">ID: ${user.user_id_search || user.id.substring(0, 8)}</div>
+            </div>
+            <div class="admin-user-actions">
+                ${!isAdmin ? `
+                    <button class="btn-admin-action ${isFrozen ? 'btn-unfreeze' : 'btn-freeze'}" 
+                            onclick="toggleUserFreeze('${user.id}', ${isFrozen})">
+                        <i class="fa-solid ${isFrozen ? 'fa-unlock' : 'fa-lock'}"></i>
+                        ${isFrozen ? '解除' : '凍結'}
+                    </button>
+                    <button class="btn-admin-action btn-delete" onclick="deleteUser('${user.id}', '${user.full_name}')">
+                        <i class="fa-solid fa-trash"></i> 削除
+                    </button>
+                ` : '<span style="color:#666;font-size:12px">管理者</span>'}
+            </div>
+        `;
+        container.appendChild(card);
+    });
+};
+
+// [ADMIN] Toggle User Freeze
+window.toggleUserFreeze = async function (userId, currentlyFrozen) {
+    const action = currentlyFrozen ? '解除' : '凍結';
+
+    const result = await Swal.fire({
+        title: `ユーザーを${action}しますか？`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: currentlyFrozen ? '#06c755' : '#ffc107',
+        cancelButtonColor: '#666',
+        confirmButtonText: action,
+        cancelButtonText: 'キャンセル'
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+        const { error } = await supabaseClient
+            .from('profiles')
+            .update({ is_frozen: !currentlyFrozen })
+            .eq('id', userId);
+
+        if (error) throw error;
+
+        Swal.fire({
+            icon: 'success',
+            title: `${action}しました`,
+            timer: 1500,
+            showConfirmButton: false
+        });
+
+        fetchAllUsersForAdmin();
+    } catch (err) {
+        console.error('Freeze error:', err);
+        Swal.fire({ icon: 'error', title: 'エラー', text: err.message });
+    }
+};
+
+// [ADMIN] Delete User
+window.deleteUser = async function (userId, userName) {
+    const result = await Swal.fire({
+        title: 'ユーザーを削除しますか？',
+        html: `<strong>${userName}</strong> を完全に削除します。<br>この操作は取り消せません。`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#e94560',
+        cancelButtonColor: '#666',
+        confirmButtonText: '削除する',
+        cancelButtonText: 'キャンセル'
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+        // Delete user's messages first
+        await supabaseClient.from('messages').delete().eq('sender_id', userId);
+
+        // Delete user's chat memberships
+        await supabaseClient.from('chat_members').delete().eq('user_id', userId);
+
+        // Delete user's friends
+        await supabaseClient.from('friends').delete().or(`user_id.eq.${userId},friend_id.eq.${userId}`);
+
+        // Delete user profile
+        const { error } = await supabaseClient.from('profiles').delete().eq('id', userId);
+
+        if (error) throw error;
+
+        Swal.fire({
+            icon: 'success',
+            title: 'ユーザーを削除しました',
+            timer: 1500,
+            showConfirmButton: false
+        });
+
+        fetchAllUsersForAdmin();
+    } catch (err) {
+        console.error('Delete user error:', err);
+        Swal.fire({ icon: 'error', title: 'エラー', text: err.message });
+    }
+};
+
 // [ADMIN] Fetch All Chats
 window.fetchAllChatsForAdmin = async function () {
     console.log('Admin: Fetching ALL chats...');
     const listContainer = document.getElementById('admin-chat-list');
-    listContainer.innerHTML = 'Loading...';
+    listContainer.innerHTML = '<p class="admin-hint">読み込み中...</p>';
 
     if (!supabaseClient) return;
 
-    // RLS Policy must allow this for role='admin'
     const { data, error } = await supabaseClient
         .from('chats')
         .select(`
@@ -1101,47 +1308,188 @@ window.fetchAllChatsForAdmin = async function () {
             chat_members (
                 user_id,
                 profiles (full_name)
-            )
+            ),
+            messages (id)
         `)
         .order('created_at', { ascending: false });
 
     if (error) {
         console.error('Admin Fetch Error:', error);
-        listContainer.innerHTML = `<div style="color:red">Error: ${error.message}</div>`;
+        listContainer.innerHTML = `<p style="color:#e94560">Error: ${error.message}</p>`;
         return;
     }
 
     console.log('Admin: Chats fetched:', data);
+
+    // Update stats
+    document.getElementById('stat-total-chats').textContent = data.length;
+
     listContainer.innerHTML = '';
 
     if (data.length === 0) {
-        listContainer.innerHTML = 'チャットルームはありません';
+        listContainer.innerHTML = '<p class="admin-hint">チャットルームはありません</p>';
         return;
     }
 
     data.forEach(chat => {
-        const item = document.createElement('div');
-        item.style.padding = '10px';
-        item.style.borderBottom = '1px solid #eee';
-        item.style.cursor = 'pointer';
-
         const memberNames = chat.chat_members
             .map(m => m.profiles?.full_name || 'Unknown')
             .join(', ');
 
-        item.innerHTML = `
-            <strong>${chat.name || 'No Name'}</strong><br>
-            <span style="font-size:0.8em; color:#666">Members: ${memberNames}</span>
-        `;
+        const messageCount = chat.messages?.length || 0;
+        const createdDate = new Date(chat.created_at).toLocaleDateString('ja-JP');
 
-        item.onclick = () => {
-            // For Admin, just open standard chat view
-            // RLS policy updates should allow fetching messages too
-            openChat(chat.id);
-        };
+        const item = document.createElement('div');
+        item.className = 'admin-chat-item';
+        item.innerHTML = `
+            <div class="admin-chat-info">
+                <div class="admin-chat-name">${chat.name || 'No Name'}</div>
+                <div class="admin-chat-members"><i class="fa-solid fa-users"></i> ${memberNames}</div>
+                <div class="admin-chat-meta">
+                    <i class="fa-solid fa-message"></i> ${messageCount}件 | 
+                    <i class="fa-solid fa-calendar"></i> ${createdDate}
+                </div>
+            </div>
+            <div class="admin-user-actions">
+                <button class="btn-admin-action btn-view" onclick="viewChatMessages('${chat.id}')">
+                    <i class="fa-solid fa-eye"></i> 監視
+                </button>
+                <button class="btn-admin-action btn-delete" onclick="deleteChat('${chat.id}', '${chat.name}')">
+                    <i class="fa-solid fa-trash"></i> 削除
+                </button>
+            </div>
+        `;
         listContainer.appendChild(item);
     });
 };
+
+// [ADMIN] Delete Chat Room
+window.deleteChat = async function (chatId, chatName) {
+    const result = await Swal.fire({
+        title: 'チャットルームを削除しますか？',
+        html: `<strong>${chatName || 'このチャット'}</strong> とすべてのメッセージを削除します。`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#e94560',
+        cancelButtonColor: '#666',
+        confirmButtonText: '削除する',
+        cancelButtonText: 'キャンセル'
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+        // Delete all messages in the chat
+        await supabaseClient.from('messages').delete().eq('chat_id', chatId);
+
+        // Delete all chat members
+        await supabaseClient.from('chat_members').delete().eq('chat_id', chatId);
+
+        // Delete the chat itself
+        const { error } = await supabaseClient.from('chats').delete().eq('id', chatId);
+
+        if (error) throw error;
+
+        Swal.fire({
+            icon: 'success',
+            title: 'チャットルームを削除しました',
+            timer: 1500,
+            showConfirmButton: false
+        });
+
+        fetchAllChatsForAdmin();
+    } catch (err) {
+        console.error('Delete chat error:', err);
+        Swal.fire({ icon: 'error', title: 'エラー', text: err.message });
+    }
+};
+
+// [ADMIN] Load Chat Select for Message Monitor
+async function loadChatSelectForAdmin() {
+    const select = document.getElementById('admin-chat-select');
+    if (!select || !supabaseClient) return;
+
+    const { data } = await supabaseClient
+        .from('chats')
+        .select('id, name')
+        .order('created_at', { ascending: false });
+
+    select.innerHTML = '<option value="">チャットルームを選択...</option>';
+
+    if (data) {
+        data.forEach(chat => {
+            const option = document.createElement('option');
+            option.value = chat.id;
+            option.textContent = chat.name || `Chat ${chat.id.substring(0, 8)}`;
+            select.appendChild(option);
+        });
+    }
+}
+
+// [ADMIN] View Chat Messages
+window.viewChatMessages = function (chatId) {
+    switchAdminTab('messages');
+    const select = document.getElementById('admin-chat-select');
+    if (select) {
+        select.value = chatId;
+        loadChatMessagesForAdmin();
+    }
+};
+
+// [ADMIN] Load Chat Messages for Monitor
+window.loadChatMessagesForAdmin = async function () {
+    const select = document.getElementById('admin-chat-select');
+    const container = document.getElementById('admin-messages-container');
+
+    if (!select || !container || !supabaseClient) return;
+
+    const chatId = select.value;
+    if (!chatId) {
+        container.innerHTML = '<p class="admin-hint">チャットルームを選択するとメッセージが表示されます</p>';
+        return;
+    }
+
+    container.innerHTML = '<p class="admin-hint">読み込み中...</p>';
+
+    const { data, error } = await supabaseClient
+        .from('messages')
+        .select(`
+            *,
+            profiles:sender_id (full_name)
+        `)
+        .eq('chat_id', chatId)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+    if (error) {
+        container.innerHTML = `<p style="color:#e94560">Error: ${error.message}</p>`;
+        return;
+    }
+
+    container.innerHTML = '';
+
+    if (data.length === 0) {
+        container.innerHTML = '<p class="admin-hint">メッセージがありません</p>';
+        return;
+    }
+
+    data.forEach(msg => {
+        const senderName = msg.profiles?.full_name || 'Unknown';
+        const time = new Date(msg.created_at).toLocaleString('ja-JP');
+
+        const item = document.createElement('div');
+        item.className = 'admin-message-item';
+        item.innerHTML = `
+            <div class="admin-message-header">
+                <span class="admin-message-sender">${senderName}</span>
+                <span class="admin-message-time">${time}</span>
+            </div>
+            <div class="admin-message-content">${msg.content || '[メディア/その他]'}</div>
+        `;
+        container.appendChild(item);
+    });
+};
+
 
 async function fetchMessages(chatId) {
     if (!supabaseClient || !currentUser) return;
