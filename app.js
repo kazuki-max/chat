@@ -31,6 +31,54 @@ let settings = {
     idsearch: true
 };
 
+// --- Random User ID Generation ---
+
+// Generate a random alphanumeric string of specified length
+function generateRandomId(length = 8) {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+}
+
+// Generate a unique user ID (checks for duplicates in database)
+async function generateUniqueUserId(maxRetries = 5) {
+    if (!supabaseClient) {
+        console.warn('Supabase not available, generating local ID');
+        return generateRandomId(8);
+    }
+
+    for (let i = 0; i < maxRetries; i++) {
+        const candidateId = generateRandomId(8);
+
+        // Check if this ID already exists
+        const { data: existingUser, error } = await supabaseClient
+            .from('profiles')
+            .select('id')
+            .eq('user_id_search', candidateId)
+            .maybeSingle();
+
+        if (error) {
+            console.error('Error checking ID uniqueness:', error);
+            continue;
+        }
+
+        if (!existingUser) {
+            // ID is unique, return it
+            console.log('Generated unique user ID:', candidateId);
+            return candidateId;
+        }
+
+        console.log('ID collision, retrying...', candidateId);
+    }
+
+    // Fallback: generate a longer ID if all retries fail
+    console.warn('Failed to generate unique ID after retries, using longer ID');
+    return generateRandomId(12);
+}
+
 // --- Data Fetching Functions ---
 
 async function fetchProfile() {
@@ -710,6 +758,16 @@ function init() {
                             const isJustCreated = Math.abs(lastSignIn - createdAt) < 5000;
 
                             if (isJustCreated) {
+                                // Generate random unique user ID for new users
+                                const randomId = await generateUniqueUserId();
+                                if (randomId) {
+                                    await supabaseClient
+                                        .from('profiles')
+                                        .update({ user_id_search: randomId })
+                                        .eq('id', user.id);
+                                    console.log('Assigned random user ID:', randomId);
+                                }
+
                                 Swal.fire({
                                     title: `登録が完了しました！\nようこそ ${fullName} さん`,
                                     icon: 'success',
