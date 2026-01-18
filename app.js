@@ -1220,6 +1220,111 @@ window.logout = async function () {
     if (mainNav) mainNav.style.display = 'none';
 };
 
+// Delete Account (退会)
+window.deleteAccount = async function () {
+    if (!supabaseClient || !currentUser) {
+        Swal.fire({ icon: 'error', title: 'エラー', text: 'ログインしてください' });
+        return;
+    }
+
+    // First confirmation
+    const result = await Swal.fire({
+        title: '退会しますか？',
+        html: `
+            <p style="color: #dc3545; font-weight: bold;">この操作は取り消せません</p>
+            <p>以下のデータが完全に削除されます：</p>
+            <ul style="text-align: left; margin: 10px 20px;">
+                <li>プロフィール情報</li>
+                <li>友達リスト</li>
+                <li>チャット履歴</li>
+                <li>すべての関連データ</li>
+            </ul>
+        `,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: '退会する',
+        cancelButtonText: 'キャンセル'
+    });
+
+    if (!result.isConfirmed) return;
+
+    // Second confirmation with input
+    const finalConfirm = await Swal.fire({
+        title: '最終確認',
+        text: '本当に退会しますか？「退会」と入力してください。',
+        input: 'text',
+        inputPlaceholder: '退会',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: '完全に削除',
+        cancelButtonText: 'キャンセル',
+        inputValidator: (value) => {
+            if (value !== '退会') {
+                return '「退会」と入力してください';
+            }
+        }
+    });
+
+    if (!finalConfirm.isConfirmed) return;
+
+    try {
+        Swal.fire({ title: '処理中...', text: 'アカウントを削除しています', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+        const userId = currentUser.id;
+
+        // Delete user's friends relationships
+        await supabaseClient.from('friends').delete().eq('user_id', userId);
+        await supabaseClient.from('friends').delete().eq('friend_id', userId);
+
+        // Delete friend requests
+        await supabaseClient.from('friend_requests').delete().eq('from_user_id', userId);
+        await supabaseClient.from('friend_requests').delete().eq('to_user_id', userId);
+
+        // Delete chat memberships
+        await supabaseClient.from('chat_members').delete().eq('user_id', userId);
+
+        // Delete profile
+        const { error: profileError } = await supabaseClient
+            .from('profiles')
+            .delete()
+            .eq('id', userId);
+
+        if (profileError) {
+            console.error('Profile deletion error:', profileError);
+        }
+
+        // Sign out (this will also invalidate the session)
+        await supabaseClient.auth.signOut();
+
+        Swal.fire({
+            icon: 'success',
+            title: '退会完了',
+            text: 'ご利用ありがとうございました',
+            timer: 2000,
+            showConfirmButton: false
+        });
+
+        // Reset UI
+        currentUser = null;
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        loginView.classList.add('active');
+
+        const mainNav = document.getElementById('main-nav');
+        if (mainNav) mainNav.style.display = 'none';
+
+    } catch (err) {
+        console.error('Delete account error:', err);
+        Swal.fire({
+            icon: 'error',
+            title: '退会エラー',
+            text: 'アカウントの削除に失敗しました: ' + err.message
+        });
+    }
+};
+
 // Render Friend List
 function renderFriendList() {
     friendListContainer.innerHTML = '';

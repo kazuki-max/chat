@@ -354,6 +354,26 @@
                         </label>
                     </div>
                 </div>
+
+                <!-- Account Actions Section -->
+                <div class="settings-section account-section">
+                    <div class="settings-item" onclick="logout()" style="cursor: pointer;">
+                        <div class="settings-label">
+                            <span class="settings-name"><i class="fa-solid fa-right-from-bracket"
+                                    style="color: #666; margin-right: 8px;"></i>ログアウト</span>
+                            <span class="settings-desc">アカウントからログアウトします</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-right" style="color: #999;"></i>
+                    </div>
+                    <div class="settings-item danger-item" onclick="deleteAccount()" style="cursor: pointer;">
+                        <div class="settings-label">
+                            <span class="settings-name" style="color: #dc3545;"><i class="fa-solid fa-user-slash"
+                                    style="margin-right: 8px;"></i>退会する</span>
+                            <span class="settings-desc">アカウントを完全に削除します</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-right" style="color: #dc3545;"></i>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -365,9 +385,6 @@
                 </div>
                 <div class="header-icons">
                     <span id="user-name"></span>
-                    <button id="logout-btn" class="icon-btn" onclick="logout()" title="ログアウト">
-                        <i class="fa-solid fa-right-from-bracket"></i>
-                    </button>
                     <!-- <i class="fa-solid fa-magnifying-glass"></i> -->
                     <i class="fa-regular fa-square-plus" id="add-friend-btn"></i>
                 </div>
@@ -544,7 +561,7 @@
         </div>
 
     </div> <!-- Closing #app -->
-    <script src="app.js?v=1.0.6"></script>
+    <script src="app.js?v=1.0.7"></script>
 </body>
 
 </html>
