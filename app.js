@@ -158,6 +158,19 @@ window.mockLogin = async function (role) {
     }
 };
 
+// Fetch all data in background after login
+async function fetchDataInBackground() {
+    try {
+        await fetchProfile();
+        await fetchFriends();
+        await fetchChats();
+        await fetchSchedule();
+        console.log('Background data fetching complete');
+    } catch (err) {
+        console.error('Error fetching data in background:', err);
+    }
+}
+
 async function fetchFriends() {
     if (!supabaseClient || !currentUser) return;
 
@@ -236,6 +249,22 @@ async function fetchChats() {
     chats = loadedChats;
     renderChatList();
 }
+
+// Fetch schedule/appointments from database (stub for now)
+async function fetchSchedule() {
+    if (!supabaseClient || !currentUser) return;
+
+    // Skip fetching from Supabase if this is a Mock User
+    if (currentUser.isMock) {
+        console.log('Skipping fetchSchedule for Mock User.');
+        return;
+    }
+
+    // TODO: Implement actual schedule fetching from Supabase
+    // For now, just render the existing appointments array
+    renderSchedule();
+}
+
 
 function updateMyProfileUI() {
     const nameData = document.getElementById('my-name') || document.querySelector('.my-profile .profile-name');
