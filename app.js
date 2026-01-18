@@ -982,6 +982,10 @@ function init() {
                     loginView.classList.add('active');
                     currentUser = null;
                     if (authForm) authForm.reset();
+
+                    // Hide navigation bar on logout
+                    const mainNav = document.getElementById('main-nav');
+                    if (mainNav) mainNav.style.display = 'none';
                 }
             });
         }
@@ -1411,10 +1415,11 @@ async function findOrCreateDMChat(friendId, friendName, friendAvatar) {
 
         } catch (err) {
             console.error('Error in findOrCreateDMChat:', err);
+            // Show detailed error for debugging
             Swal.fire({
                 icon: 'error',
-                title: 'エラー',
-                text: 'チャットの作成に失敗しました'
+                title: 'チャット作成エラー',
+                text: 'チャットの作成に失敗しました: ' + (err.message || 'RLSポリシーを確認してください')
             });
             return null;
         }
