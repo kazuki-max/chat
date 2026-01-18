@@ -1105,27 +1105,196 @@ function renderFriendList() {
     friends.forEach(friend => {
         const item = document.createElement('div');
         item.className = 'friend-item';
-        // Clicking a friend could open chat
-        item.onclick = () => {
-            // Find existing chat or create new (simplified: just log or open generic)
-            const chat = chats.find(c => c.id === friend.id);
-            if (chat) {
-                openChat(chat.id);
-            } else {
-                // Should technically create a new chat context
-                console.log('Open chat for', friend.name);
-            }
-        };
+        // Clicking a friend opens their profile
+        item.onclick = () => openFriendProfile(friend);
 
         item.innerHTML = `
             <div class="avatar" style="background-image: url('${friend.avatar}')"></div>
             <div class="profile-info">
                 <span class="profile-name">${friend.name}</span>
-                <span class="profile-status">${friend.status}</span>
+                <span class="profile-status">${friend.status || ''}</span>
             </div>
         `;
         friendListContainer.appendChild(item);
     });
+}
+
+// Friend Profile Modal State
+let selectedFriend = null;
+let friendProfileModal = null;
+
+// Open Friend Profile Modal
+window.openFriendProfile = function (friend) {
+    selectedFriend = friend;
+    friendProfileModal = friendProfileModal || document.getElementById('friend-profile-modal');
+
+    if (!friendProfileModal) return;
+
+    // Populate modal with friend data
+    const avatarEl = document.getElementById('friend-profile-avatar');
+    const nameEl = document.getElementById('friend-profile-name');
+    const idEl = document.getElementById('friend-profile-id');
+    const statusEl = document.getElementById('friend-profile-status');
+
+    if (avatarEl) avatarEl.style.backgroundImage = `url('${friend.avatar || 'https://i.pravatar.cc/150?u=' + friend.id}')`;
+    if (nameEl) nameEl.textContent = friend.name || 'Unknown';
+    if (idEl) idEl.textContent = friend.userId ? `@${friend.userId}` : '';
+    if (statusEl) statusEl.textContent = friend.status || 'ステータスなし';
+
+    friendProfileModal.classList.add('active');
+};
+
+// Close Friend Profile Modal
+window.closeFriendProfileModal = function () {
+    if (friendProfileModal) {
+        friendProfileModal.classList.remove('active');
+    }
+    selectedFriend = null;
+};
+
+// Start Chat with Friend
+window.startChatWithFriend = async function () {
+    if (!selectedFriend) return;
+
+    closeFriendProfileModal();
+
+    // Find existing DM chat or create new one
+    const chatId = await findOrCreateDMChat(selectedFriend.id, selectedFriend.name, selectedFriend.avatar);
+
+    if (chatId) {
+        openChat(chatId);
+    }
+};
+
+// Find or Create DM Chat
+async function findOrCreateDMChat(friendId, friendName, friendAvatar) {
+    if (!currentUser) {
+        console.error('No current user');
+        return null;
+    }
+
+    // First, check if there's already a chat with this friend in our local chats
+    const existingChat = chats.find(chat => {
+        // For DM chats, we might have stored the friend's ID or name
+        return chat.friendId === friendId || chat.name === friendName;
+    });
+
+    if (existingChat) {
+        return existingChat.id;
+    }
+
+    // If using Supabase, try to find or create in the database
+    if (supabaseClient) {
+        try {
+            // Check if a DM chat already exists between these two users
+            const { data: existingChats, error: searchError } = await supabaseClient
+                .from('chat_members')
+                .select('chat_id')
+                .eq('user_id', currentUser.id);
+
+            if (searchError) throw searchError;
+
+            // For each chat the current user is in, check if the friend is also a member
+            for (const membership of existingChats || []) {
+                const { data: otherMembers } = await supabaseClient
+                    .from('chat_members')
+                    .select('user_id')
+                    .eq('chat_id', membership.chat_id)
+                    .eq('user_id', friendId);
+
+                if (otherMembers && otherMembers.length > 0) {
+                    // Check if it's a DM (only 2 members)
+                    const { data: allMembers } = await supabaseClient
+                        .from('chat_members')
+                        .select('user_id')
+                        .eq('chat_id', membership.chat_id);
+
+                    if (allMembers && allMembers.length === 2) {
+                        // Found existing DM chat
+                        // Make sure it's in our local chats array
+                        if (!chats.find(c => c.id === membership.chat_id)) {
+                            chats.push({
+                                id: membership.chat_id,
+                                name: friendName,
+                                avatar: friendAvatar || `https://i.pravatar.cc/150?u=${friendId}`,
+                                friendId: friendId,
+                                lastMessage: '',
+                                time: '',
+                                unread: 0,
+                                messages: []
+                            });
+                            renderChatList();
+                        }
+                        return membership.chat_id;
+                    }
+                }
+            }
+
+            // No existing DM found, create a new one
+            const { data: newChat, error: chatError } = await supabaseClient
+                .from('chats')
+                .insert({
+                    name: friendName,
+                    is_group: false
+                })
+                .select()
+                .single();
+
+            if (chatError) throw chatError;
+
+            // Add both users as members
+            const { error: membersError } = await supabaseClient
+                .from('chat_members')
+                .insert([
+                    { chat_id: newChat.id, user_id: currentUser.id },
+                    { chat_id: newChat.id, user_id: friendId }
+                ]);
+
+            if (membersError) throw membersError;
+
+            // Add to local chats array
+            const newLocalChat = {
+                id: newChat.id,
+                name: friendName,
+                avatar: friendAvatar || `https://i.pravatar.cc/150?u=${friendId}`,
+                friendId: friendId,
+                lastMessage: '',
+                time: '',
+                unread: 0,
+                messages: []
+            };
+            chats.push(newLocalChat);
+            renderChatList();
+
+            console.log('Created new DM chat:', newChat.id);
+            return newChat.id;
+
+        } catch (err) {
+            console.error('Error in findOrCreateDMChat:', err);
+            Swal.fire({
+                icon: 'error',
+                title: 'エラー',
+                text: 'チャットの作成に失敗しました'
+            });
+            return null;
+        }
+    } else {
+        // Mock mode: create a local-only chat
+        const mockChatId = 'mock-dm-' + friendId;
+        const mockChat = {
+            id: mockChatId,
+            name: friendName,
+            avatar: friendAvatar || `https://i.pravatar.cc/150?u=${friendId}`,
+            friendId: friendId,
+            lastMessage: '',
+            time: '',
+            unread: 0,
+            messages: []
+        };
+        chats.push(mockChat);
+        renderChatList();
+        return mockChatId;
+    }
 }
 
 // Render Chat List
@@ -1966,6 +2135,18 @@ function setupEventListeners() {
             // but browser API limitations exist. For now, it's a mock state.
         });
     });
+
+    // Friend Profile Modal
+    const closeFriendProfileBtn = document.getElementById('close-friend-profile-btn');
+    const startChatBtn = document.getElementById('btn-start-chat');
+
+    if (closeFriendProfileBtn) {
+        closeFriendProfileBtn.addEventListener('click', closeFriendProfileModal);
+    }
+
+    if (startChatBtn) {
+        startChatBtn.addEventListener('click', startChatWithFriend);
+    }
 
     // Friend Search
     if (addFriendBtn) {

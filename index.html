@@ -51,7 +51,7 @@
                         <form id="login-email-form">
                             <input type="email" id="login-email" placeholder="メールアドレス" required>
                             <button type="submit" class="btn-submit">
-                                <i class="fa-solid fa-paper-plane"></i> 認証コードを送信
+                                <i class="fa-solid fa-paper-plane"></i> ログイン
                             </button>
                         </form>
 
@@ -106,7 +106,7 @@
                             <input type="text" id="register-name" placeholder="ニックネーム" required>
                             <input type="email" id="register-email" placeholder="メールアドレス" required>
                             <button type="submit" class="btn-submit">
-                                <i class="fa-solid fa-paper-plane"></i> 認証コードを送信
+                                <i class="fa-solid fa-paper-plane"></i> 新規登録
                             </button>
                         </form>
 
@@ -498,6 +498,24 @@
                         <button type="submit" class="btn-submit">保存</button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <!-- Friend Profile Modal -->
+        <div id="friend-profile-modal" class="modal">
+            <div class="modal-content friend-profile-content">
+                <div class="friend-profile-header">
+                    <div class="friend-profile-avatar" id="friend-profile-avatar"></div>
+                    <h3 class="friend-profile-name" id="friend-profile-name"></h3>
+                    <p class="friend-profile-id" id="friend-profile-id"></p>
+                    <p class="friend-profile-status" id="friend-profile-status"></p>
+                </div>
+                <div class="friend-profile-actions">
+                    <button type="button" class="btn-start-chat" id="btn-start-chat">
+                        <i class="fa-solid fa-comment"></i> チャットを開始
+                    </button>
+                    <button type="button" class="btn-cancel" id="close-friend-profile-btn">閉じる</button>
+                </div>
             </div>
         </div>
 
