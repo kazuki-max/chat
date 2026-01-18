@@ -1351,15 +1351,36 @@ window.closeFriendProfileModal = function () {
 
 // Start Chat with Friend
 window.startChatWithFriend = async function () {
-    if (!selectedFriend) return;
+    if (!selectedFriend) {
+        console.error('No friend selected');
+        Swal.fire({ icon: 'error', title: 'エラー', text: '友達が選択されていません' });
+        return;
+    }
+
+    if (!currentUser) {
+        console.error('No current user');
+        Swal.fire({ icon: 'error', title: 'エラー', text: 'ログインしてください' });
+        return;
+    }
 
     closeFriendProfileModal();
 
-    // Find existing DM chat or create new one
-    const chatId = await findOrCreateDMChat(selectedFriend.id, selectedFriend.name, selectedFriend.avatar);
+    try {
+        Swal.fire({ title: 'チャットを作成中...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
-    if (chatId) {
-        openChat(chatId);
+        // Find existing DM chat or create new one
+        const chatId = await findOrCreateDMChat(selectedFriend.id, selectedFriend.name, selectedFriend.avatar);
+
+        Swal.close();
+
+        if (chatId) {
+            openChat(chatId);
+        } else {
+            Swal.fire({ icon: 'error', title: 'エラー', text: 'チャットの作成に失敗しました' });
+        }
+    } catch (err) {
+        console.error('Error starting chat:', err);
+        Swal.fire({ icon: 'error', title: 'エラー', text: err.message });
     }
 };
 
