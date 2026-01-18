@@ -722,10 +722,18 @@ function init() {
 
                         // Trigger Data Fetch & UI Transition
                         loginView.classList.remove('active');
+
+                        // Show navigation bar for logged in users
+                        const mainNav = document.getElementById('main-nav');
+
                         if (role === 'admin') {
                             adminView.classList.add('active');
+                            // Hide nav for admin view
+                            if (mainNav) mainNav.style.display = 'none';
                         } else {
                             chatListView.classList.add('active');
+                            // Show nav for regular users
+                            if (mainNav) mainNav.style.display = 'flex';
                             // Update Nav
                             navItems.forEach(n => {
                                 if (n.dataset.target === 'chat-list-view') n.classList.add('active');
