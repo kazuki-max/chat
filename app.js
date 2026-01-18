@@ -110,53 +110,6 @@ async function fetchProfile() {
         }
     }
 }
-// ...
-// ...
-window.mockLogin = async function (role) {
-    console.log('Starting Login Process for:', role);
-
-    // Set minimal user state initially
-    currentUser = {
-        id: 'mock-user-id-' + role, // Assign dummy ID for logic
-        role: role,
-        name: role === 'admin' ? 'Admin' : 'Me',
-        isMock: true // Flag to prevent onAuthStateChange overwrite
-    };
-
-    // --- 1. Immediate UI Transition (Optimistic) ---
-    // Hide Login
-    loginView.classList.remove('active');
-
-    // Show navigation bar on login
-    const mainNav = document.getElementById('main-nav');
-    if (mainNav) mainNav.style.display = 'flex';
-
-    if (role === 'admin') {
-        // Show Admin
-        adminView.classList.add('active');
-        // Hide nav for admin view
-        if (mainNav) mainNav.style.display = 'none';
-    } else {
-        // Show Home (Default App Flow)
-        chatListView.classList.add('active');
-
-        // Update Bottom Nav
-        navItems.forEach(n => {
-            if (n.dataset.target === 'chat-list-view') n.classList.add('active');
-            else n.classList.remove('active');
-        });
-    }
-
-    // --- 2. Background Data Fetching ---
-    // If connected to Supabase AND NOT Mock, fetch real data
-    // For Mock, maybe load dummy data?
-    if (supabaseClient) {
-        // fetchDataInBackground handles the isMock check inside fetchProfile now
-        fetchDataInBackground();
-    } else {
-        console.warn('Supabase Client not available. Running in offline mode.');
-    }
-};
 
 // Fetch all data in background after login
 async function fetchDataInBackground() {
@@ -1166,8 +1119,7 @@ function setupAuthListeners() {
 
     async function verifyOtpCode(email, token, isSignUp = false) {
         if (!supabaseClient) {
-            if (token === '123456') { mockLogin('general'); return true; }
-            alert('認証コードが正しくありません');
+            alert('サーバーに接続できません。後でもう一度お試しください。');
             return false;
         }
 
