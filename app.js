@@ -84,12 +84,6 @@ async function generateUniqueUserId(maxRetries = 5) {
 async function fetchProfile() {
     if (!supabaseClient || !currentUser) return;
 
-    // Skip fetching from Supabase if this is a Mock User
-    if (currentUser.isMock) {
-        console.log('Skipping fetchProfile for Mock User.');
-        return;
-    }
-
     const { data: { user } } = await supabaseClient.auth.getUser();
     if (user) {
         currentUser.id = user.id;
@@ -207,12 +201,6 @@ async function fetchChats() {
 // Fetch schedule/appointments from database (stub for now)
 async function fetchSchedule() {
     if (!supabaseClient || !currentUser) return;
-
-    // Skip fetching from Supabase if this is a Mock User
-    if (currentUser.isMock) {
-        console.log('Skipping fetchSchedule for Mock User.');
-        return;
-    }
 
     // TODO: Implement actual schedule fetching from Supabase
     // For now, just render the existing appointments array
@@ -988,11 +976,6 @@ function init() {
                         await fetchDataInBackground();
                     }
                 } else if (event === 'SIGNED_OUT') {
-                    // Prevent clearing UI if we are in Mock Mode explicitly
-                    if (currentUser && currentUser.isMock) {
-                        console.log('Ignoring SIGNED_OUT event due to Mock Mode.');
-                        return;
-                    }
 
                     // Reset UI
                     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -1213,21 +1196,8 @@ window.handleSocialLogin = async function (provider) {
     }
 };
 
-// ... initial listners ...
-// Mock Login
-// Mock Login (now acts as Post-Login Initializer)
-// Mock Login (now acts as Post-Login Initializer)
-// Mock Login (now acts as Post-Login Initializer)
-// Duplicate functions removed.
-
-
-
 // Logout
 window.logout = async function () {
-    // Clear mock flag first so SIGNED_OUT event is not ignored
-    if (currentUser && currentUser.isMock) {
-        currentUser.isMock = false;
-    }
 
     if (supabaseClient) {
         const { error } = await supabaseClient.auth.signOut();
