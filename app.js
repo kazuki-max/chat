@@ -251,9 +251,16 @@ function updateMyProfileUI() {
 
 // Update Settings UI with user ID
 function updateSettingsUI() {
+    // Update settings page ID display
     const userIdDisplay = document.getElementById('user-id-display');
     if (userIdDisplay && currentUser && currentUser.userId) {
         userIdDisplay.textContent = currentUser.userId;
+    }
+
+    // Update home profile ID display
+    const myIdDisplay = document.getElementById('my-id-display');
+    if (myIdDisplay && currentUser && currentUser.userId) {
+        myIdDisplay.innerHTML = `<i class="fa-solid fa-at"></i> ${currentUser.userId}`;
     }
 }
 
