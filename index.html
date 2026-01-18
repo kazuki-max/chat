@@ -266,6 +266,16 @@
                     <i class="fa-solid fa-chevron-right profile-edit-icon"></i>
                 </div>
 
+                <!-- Friend Requests Section -->
+                <div id="friend-requests-section" class="friend-requests-section" style="display: none;">
+                    <div class="list-section-header">
+                        友達申請 <span id="request-count">0</span>
+                    </div>
+                    <div class="friend-requests-list" id="friend-requests-list">
+                        <!-- Requests injected here -->
+                    </div>
+                </div>
+
                 <div class="list-section-header">友達 <span id="friend-count">0</span></div>
                 <div class="friend-list" id="friend-list">
                     <!-- Friends injected here -->
@@ -445,7 +455,6 @@
                 </form>
             </div>
         </div>
-
         <!-- ID Search Modal -->
         <div id="search-modal" class="modal">
             <div class="modal-content">
@@ -463,7 +472,27 @@
             </div>
         </div>
 
-        <!-- Profile Edit Modal -->
+        <!-- Friend Request Modal -->
+        <div id="friend-request-modal" class="modal">
+            <div class="modal-content friend-request-content">
+                <h3>友達申請</h3>
+                <div class="request-target-info">
+                    <div class="request-target-avatar" id="request-target-avatar"></div>
+                    <div class="request-target-name" id="request-target-name"></div>
+                </div>
+                <div class="form-group">
+                    <label>メッセージ（任意）</label>
+                    <textarea id="request-message" placeholder="一言メッセージを入力" maxlength="100" rows="3"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" id="close-request-modal-btn">キャンセル</button>
+                    <button type="button" class="btn-submit" id="send-request-btn">
+                        <i class="fa-solid fa-paper-plane"></i> 申請を送信
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <div id="profile-edit-modal" class="modal">
             <div class="modal-content profile-edit-content">
                 <h3>プロフィール編集</h3>
@@ -520,7 +549,7 @@
         </div>
 
     </div> <!-- Closing #app -->
-    <script src="app.js?v=1.0.1"></script>
+    <script src="app.js?v=1.0.2"></script>
 </body>
 
 </html>

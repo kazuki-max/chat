@@ -165,6 +165,7 @@ async function fetchDataInBackground() {
         await fetchFriends();
         await fetchChats();
         await fetchSchedule();
+        await fetchPendingRequests();
         console.log('Background data fetching complete');
     } catch (err) {
         console.error('Error fetching data in background:', err);
@@ -389,54 +390,250 @@ async function searchUserById(query) {
     }
 }
 
-// Add friend to Supabase
-window.addFriendById = async function (friendId) {
-    if (!supabaseClient || !currentUser) {
+// Friend Request State
+let pendingRequestTarget = null;
+let friendRequestModal = null;
+
+// Open Friend Request Modal (instead of direct add)
+window.openFriendRequestModal = function (userId, userName, userAvatar) {
+    pendingRequestTarget = { id: userId, name: userName, avatar: userAvatar };
+    friendRequestModal = friendRequestModal || document.getElementById('friend-request-modal');
+
+    if (!friendRequestModal) return;
+
+    // Populate modal
+    const avatarEl = document.getElementById('request-target-avatar');
+    const nameEl = document.getElementById('request-target-name');
+    const messageEl = document.getElementById('request-message');
+
+    if (avatarEl) avatarEl.style.backgroundImage = `url('${userAvatar || 'https://i.pravatar.cc/150?u=' + userId}')`;
+    if (nameEl) nameEl.textContent = userName || 'ユーザー';
+    if (messageEl) messageEl.value = '';
+
+    // Close search modal, open request modal
+    if (searchModal) searchModal.classList.remove('active');
+    friendRequestModal.classList.add('active');
+};
+
+window.closeFriendRequestModal = function () {
+    if (friendRequestModal) {
+        friendRequestModal.classList.remove('active');
+    }
+    pendingRequestTarget = null;
+};
+
+// Send Friend Request to Supabase
+window.sendFriendRequest = async function () {
+    if (!supabaseClient || !currentUser || !pendingRequestTarget) {
         alert('ログインしてください');
         return;
     }
 
+    const message = document.getElementById('request-message')?.value.trim() || '';
+
     try {
         // Check if already friends
-        const { data: existing } = await supabaseClient
+        const { data: existingFriend } = await supabaseClient
             .from('friends')
             .select('*')
             .eq('user_id', currentUser.id)
-            .eq('friend_id', friendId)
-            .single();
+            .eq('friend_id', pendingRequestTarget.id)
+            .maybeSingle();
 
-        if (existing) {
-            alert('すでに友達です');
+        if (existingFriend) {
+            Swal.fire({ icon: 'info', title: 'すでに友達です' });
+            closeFriendRequestModal();
             return;
         }
 
-        // Add friend
+        // Check if request already exists
+        const { data: existingRequest } = await supabaseClient
+            .from('friend_requests')
+            .select('*')
+            .eq('from_user_id', currentUser.id)
+            .eq('to_user_id', pendingRequestTarget.id)
+            .maybeSingle();
+
+        if (existingRequest) {
+            Swal.fire({ icon: 'info', title: '申請済みです', text: '相手の承認をお待ちください' });
+            closeFriendRequestModal();
+            return;
+        }
+
+        // Send friend request
         const { error } = await supabaseClient
-            .from('friends')
+            .from('friend_requests')
             .insert({
-                user_id: currentUser.id,
-                friend_id: friendId
+                from_user_id: currentUser.id,
+                to_user_id: pendingRequestTarget.id,
+                message: message,
+                status: 'pending'
             });
 
         if (error) throw error;
 
-        // Refresh friends list
-        await fetchFriends();
+        Swal.fire({
+            icon: 'success',
+            title: '申請を送信しました',
+            text: '相手の承認をお待ちください',
+            timer: 2000,
+            showConfirmButton: false
+        });
+
+        closeFriendRequestModal();
+
+    } catch (err) {
+        console.error('Send friend request error:', err);
+        Swal.fire({ icon: 'error', title: 'エラー', text: err.message });
+    }
+};
+
+// Fetch Pending Friend Requests (received)
+async function fetchPendingRequests() {
+    if (!supabaseClient || !currentUser) return;
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('friend_requests')
+            .select(`
+                id,
+                message,
+                created_at,
+                from_user:from_user_id (
+                    id,
+                    full_name,
+                    avatar_url,
+                    user_id_search
+                )
+            `)
+            .eq('to_user_id', currentUser.id)
+            .eq('status', 'pending')
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        renderFriendRequests(data || []);
+
+    } catch (err) {
+        console.error('Fetch pending requests error:', err);
+    }
+}
+
+// Render Friend Requests
+function renderFriendRequests(requests) {
+    const section = document.getElementById('friend-requests-section');
+    const list = document.getElementById('friend-requests-list');
+    const countSpan = document.getElementById('request-count');
+
+    if (!section || !list) return;
+
+    if (requests.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = 'block';
+    countSpan.textContent = requests.length;
+
+    list.innerHTML = requests.map(req => {
+        const user = req.from_user;
+        const avatarUrl = user?.avatar_url || `https://i.pravatar.cc/150?u=${user?.id}`;
+        const messageHtml = req.message
+            ? `<div class="request-message">"${req.message}"</div>`
+            : '';
+
+        return `
+            <div class="friend-request-card" data-request-id="${req.id}">
+                <div class="request-user-info">
+                    <div class="request-user-avatar" style="background-image: url('${avatarUrl}')"></div>
+                    <div class="request-user-details">
+                        <div class="request-user-name">${user?.full_name || 'ユーザー'}</div>
+                        <div class="request-user-id">@${user?.user_id_search || ''}</div>
+                    </div>
+                </div>
+                ${messageHtml}
+                <div class="request-actions">
+                    <button class="btn-accept" onclick="acceptFriendRequest('${req.id}', '${user?.id}')">
+                        <i class="fa-solid fa-check"></i> 承認
+                    </button>
+                    <button class="btn-reject" onclick="rejectFriendRequest('${req.id}')">
+                        <i class="fa-solid fa-xmark"></i> 拒否
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Accept Friend Request
+window.acceptFriendRequest = async function (requestId, fromUserId) {
+    if (!supabaseClient || !currentUser) return;
+
+    try {
+        Swal.fire({ title: '処理中...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+        // Update request status
+        const { error: updateError } = await supabaseClient
+            .from('friend_requests')
+            .update({ status: 'accepted' })
+            .eq('id', requestId);
+
+        if (updateError) throw updateError;
+
+        // Add both as friends (bidirectional)
+        const { error: friendError1 } = await supabaseClient
+            .from('friends')
+            .insert({ user_id: currentUser.id, friend_id: fromUserId });
+
+        const { error: friendError2 } = await supabaseClient
+            .from('friends')
+            .insert({ user_id: fromUserId, friend_id: currentUser.id });
+
+        // Ignore duplicate errors (already friends)
+        if (friendError1 && friendError1.code !== '23505') throw friendError1;
+        if (friendError2 && friendError2.code !== '23505') throw friendError2;
 
         Swal.fire({
             icon: 'success',
-            title: '友達追加完了',
+            title: '友達になりました！',
             timer: 1500,
             showConfirmButton: false
         });
 
-        // Close modal
-        searchModal.classList.remove('active');
-        searchResultContainer.innerHTML = '';
-        idInput.value = '';
+        // Refresh UI
+        await fetchPendingRequests();
+        await fetchFriends();
+
     } catch (err) {
-        console.error('Add friend error:', err);
-        alert('エラー: ' + err.message);
+        console.error('Accept friend request error:', err);
+        Swal.fire({ icon: 'error', title: 'エラー', text: err.message });
+    }
+};
+
+// Reject Friend Request
+window.rejectFriendRequest = async function (requestId) {
+    if (!supabaseClient || !currentUser) return;
+
+    try {
+        const { error } = await supabaseClient
+            .from('friend_requests')
+            .update({ status: 'rejected' })
+            .eq('id', requestId);
+
+        if (error) throw error;
+
+        Swal.fire({
+            icon: 'info',
+            title: '申請を拒否しました',
+            timer: 1500,
+            showConfirmButton: false
+        });
+
+        await fetchPendingRequests();
+
+    } catch (err) {
+        console.error('Reject friend request error:', err);
+        Swal.fire({ icon: 'error', title: 'エラー', text: err.message });
     }
 };
 
@@ -2148,6 +2345,18 @@ function setupEventListeners() {
         startChatBtn.addEventListener('click', startChatWithFriend);
     }
 
+    // Friend Request Modal
+    const closeRequestModalBtn = document.getElementById('close-request-modal-btn');
+    const sendRequestBtn = document.getElementById('send-request-btn');
+
+    if (closeRequestModalBtn) {
+        closeRequestModalBtn.addEventListener('click', closeFriendRequestModal);
+    }
+
+    if (sendRequestBtn) {
+        sendRequestBtn.addEventListener('click', sendFriendRequest);
+    }
+
     // Friend Search
     if (addFriendBtn) {
         addFriendBtn.addEventListener('click', () => {
@@ -2206,7 +2415,7 @@ function setupEventListeners() {
                         <div class="result-avatar" style="background-image: url('${avatarUrl}')"></div>
                         <div class="result-name">${foundUser.full_name || 'ユーザー'}</div>
                         <div class="result-id">ID: ${foundUser.user_id_search}</div>
-                        <button class="join-btn" onclick="addFriendById('${foundUser.id}')">友達追加する</button>
+                        <button class="join-btn" onclick="openFriendRequestModal('${foundUser.id}', '${foundUser.full_name || ''}', '${avatarUrl}')">友達申請する</button>
                     </div>
                 `;
             } else {
