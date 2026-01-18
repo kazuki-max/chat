@@ -936,8 +936,12 @@ window.handleSocialLogin = async function (provider) {
     if (!supabaseClient) return alert('Supabaseが設定されていません');
 
     try {
+        // Use production URL for redirect, or localhost for development
+        const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+        const redirectUrl = isProduction ? 'https://chamomile.fun/' : window.location.origin + '/';
+
         const options = {
-            redirectTo: window.location.href
+            redirectTo: redirectUrl
         };
 
         // Add Google specific query params
