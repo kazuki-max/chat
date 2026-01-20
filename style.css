@@ -1981,3 +1981,62 @@ input:checked+.slider:before {
     resize: none;
     font-family: inherit;
 }
+
+/* Screenshot Prevention Styles */
+.screenshot-prevention {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+.screenshot-prevention .messages-container,
+.screenshot-prevention .chat-item,
+.screenshot-prevention .friend-item {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+}
+
+#screenshot-blur-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    z-index: 99999;
+    align-items: center;
+    justify-content: center;
+}
+
+#screenshot-blur-overlay.active {
+    display: flex;
+}
+
+#screenshot-blur-overlay .blur-message {
+    text-align: center;
+    padding: 40px;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+}
+
+#screenshot-blur-overlay .blur-message::before {
+    content: "🔒";
+    font-size: 48px;
+    display: block;
+    margin-bottom: 16px;
+}
+
+/* Login view - ensure footer is hidden */
+#login-view.active~#main-nav {
+    display: none !important;
+}
+
+/* Admin view - ensure footer is hidden */
+#admin-view.active~#main-nav {
+    display: none !important;
+}

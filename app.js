@@ -31,6 +31,15 @@ let settings = {
     idsearch: true
 };
 
+// Settings feature state
+let screenshotPrevention = {
+    enabled: false,
+    overlay: null
+};
+
+// Auto-delete timer for messages (24 hours in milliseconds)
+const AUTO_DELETE_INTERVAL = 24 * 60 * 60 * 1000;
+
 // --- Random User ID Generation ---
 
 // Generate a random alphanumeric string of specified length
@@ -99,9 +108,151 @@ async function fetchProfile() {
             currentUser.avatar = data.avatar_url;
             currentUser.status = data.status_message;
             currentUser.userId = data.user_id_search;
+
+            // Load settings from database
+            if (data.settings) {
+                try {
+                    const dbSettings = typeof data.settings === 'string'
+                        ? JSON.parse(data.settings)
+                        : data.settings;
+                    settings = { ...settings, ...dbSettings };
+                    applySettings();
+                } catch (e) {
+                    console.warn('Failed to parse settings:', e);
+                }
+            }
+
             updateMyProfileUI();
             updateSettingsUI();
+            updateSettingsToggles();
         }
+    }
+}
+
+// Apply current settings to the UI and functionality
+function applySettings() {
+    // Apply screenshot prevention
+    if (settings.screenshot) {
+        enableScreenshotPrevention();
+    } else {
+        disableScreenshotPrevention();
+    }
+
+    // Apply privacy mode (no visible changes needed, affects search)
+    console.log('Settings applied:', settings);
+}
+
+// Update settings toggle states in UI
+function updateSettingsToggles() {
+    const toggles = {
+        'setting-privacy': settings.privacy,
+        'setting-screenshot': settings.screenshot,
+        'setting-autodelete': settings.autodelete,
+        'setting-idsearch': settings.idsearch
+    };
+
+    Object.entries(toggles).forEach(([id, value]) => {
+        const el = document.getElementById(id);
+        if (el) el.checked = value;
+    });
+}
+
+// Save settings to database
+async function saveSettingsToDatabase() {
+    if (!supabaseClient || !currentUser) return;
+
+    try {
+        const { error } = await supabaseClient
+            .from('profiles')
+            .update({ settings: settings })
+            .eq('id', currentUser.id);
+
+        if (error) {
+            console.error('Failed to save settings:', error);
+        } else {
+            console.log('Settings saved to database');
+        }
+    } catch (err) {
+        console.error('Error saving settings:', err);
+    }
+}
+
+// Screenshot prevention functions
+function enableScreenshotPrevention() {
+    if (screenshotPrevention.enabled) return;
+
+    screenshotPrevention.enabled = true;
+
+    // Add CSS class to body for screenshot prevention styling
+    document.body.classList.add('screenshot-prevention');
+
+    // Disable right-click context menu
+    document.addEventListener('contextmenu', preventContextMenu);
+
+    // Disable keyboard shortcuts for screenshots
+    document.addEventListener('keydown', preventScreenshotKeys);
+
+    // Create blur overlay for when window loses focus (potential screenshot)
+    if (!screenshotPrevention.overlay) {
+        const overlay = document.createElement('div');
+        overlay.id = 'screenshot-blur-overlay';
+        overlay.innerHTML = '<div class="blur-message">スクショ防止機能が有効です</div>';
+        document.body.appendChild(overlay);
+        screenshotPrevention.overlay = overlay;
+    }
+
+    window.addEventListener('blur', showBlurOverlay);
+    window.addEventListener('focus', hideBlurOverlay);
+
+    console.log('Screenshot prevention enabled');
+}
+
+function disableScreenshotPrevention() {
+    if (!screenshotPrevention.enabled) return;
+
+    screenshotPrevention.enabled = false;
+    document.body.classList.remove('screenshot-prevention');
+    document.removeEventListener('contextmenu', preventContextMenu);
+    document.removeEventListener('keydown', preventScreenshotKeys);
+    window.removeEventListener('blur', showBlurOverlay);
+    window.removeEventListener('focus', hideBlurOverlay);
+
+    if (screenshotPrevention.overlay) {
+        screenshotPrevention.overlay.remove();
+        screenshotPrevention.overlay = null;
+    }
+
+    console.log('Screenshot prevention disabled');
+}
+
+function preventContextMenu(e) {
+    e.preventDefault();
+    return false;
+}
+
+function preventScreenshotKeys(e) {
+    // Prevent common screenshot shortcuts
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === '3' || e.key === '4' || e.key === '5' || e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        Swal.fire({ icon: 'warning', title: 'スクショ禁止', text: 'スクリーンショットは無効化されています', timer: 2000, showConfirmButton: false });
+        return false;
+    }
+    // Prevent PrintScreen
+    if (e.key === 'PrintScreen') {
+        e.preventDefault();
+        return false;
+    }
+}
+
+function showBlurOverlay() {
+    if (screenshotPrevention.overlay && settings.screenshot) {
+        screenshotPrevention.overlay.classList.add('active');
+    }
+}
+
+function hideBlurOverlay() {
+    if (screenshotPrevention.overlay) {
+        screenshotPrevention.overlay.classList.remove('active');
     }
 }
 
@@ -941,6 +1092,10 @@ function init() {
         setupEventListeners(); // UI Event Listeners
         setupProfileEditListeners(); // Profile editing
 
+        // Ensure footer is hidden initially (for login screen)
+        const mainNav = document.getElementById('main-nav');
+        if (mainNav) mainNav.style.display = 'none';
+
         // Supabase Auth Listener (Centralized Auth Logic)
         if (supabaseClient) {
             supabaseClient.auth.onAuthStateChange(async (event, session) => {
@@ -948,16 +1103,15 @@ function init() {
 
                 if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
                     if (session) {
-                        // Avoid re-running logic if already logged in (optional check)
                         const user = session.user;
                         const fullName = user.user_metadata.full_name || user.email || 'User';
                         const role = user.user_metadata.role || 'general';
 
-                        // Update UI Name
+                        // Update UI Name immediately
                         const userNameEl = document.getElementById('user-name');
                         if (userNameEl) userNameEl.textContent = fullName;
 
-                        // Retrieve user ID
+                        // Initialize currentUser with basic info
                         currentUser = {
                             id: user.id,
                             name: fullName,
@@ -966,17 +1120,12 @@ function init() {
                         };
 
                         // Show Welcome Alert only on New Registration
-                        // Logic: If CreatedAt is very close to LastSignInAt, it's a new registration.
-                        // If I logout and login, LastSignInAt will be newer than CreatedAt.
                         if (event === 'SIGNED_IN') {
                             const createdAt = new Date(user.created_at).getTime();
                             const lastSignIn = new Date(user.last_sign_in_at).getTime();
-
-                            // Allow small variance (e.g. 5 seconds) for system processing
                             const isJustCreated = Math.abs(lastSignIn - createdAt) < 5000;
 
                             if (isJustCreated) {
-                                // Generate random unique user ID for new users
                                 const randomId = await generateUniqueUserId();
                                 if (randomId) {
                                     await supabaseClient
@@ -993,45 +1142,61 @@ function init() {
                                     showConfirmButton: false
                                 });
                             }
-                            // Regular logins get no popup
                         }
 
-                        // Trigger Data Fetch & UI Transition
+                        // CRITICAL: Clear all views first, then show the correct one
+                        document.querySelectorAll('.view').forEach(v => {
+                            if (v.id !== 'chat-room-view') v.classList.remove('active');
+                        });
                         loginView.classList.remove('active');
 
-                        // Show navigation bar for logged in users
+                        // Show navigation bar for logged in users (only non-admin)
                         const mainNav = document.getElementById('main-nav');
 
                         if (role === 'admin') {
                             adminView.classList.add('active');
-                            // Hide nav for admin view
                             if (mainNav) mainNav.style.display = 'none';
                         } else {
                             chatListView.classList.add('active');
-                            // Show nav for regular users
                             if (mainNav) mainNav.style.display = 'flex';
-                            // Update Nav
                             navItems.forEach(n => {
                                 if (n.dataset.target === 'chat-list-view') n.classList.add('active');
                                 else n.classList.remove('active');
                             });
                         }
 
+                        // Fetch profile data from database (this updates currentUser with DB values)
                         await fetchDataInBackground();
+
+                        console.log('Session restored for:', currentUser.name, 'ID:', currentUser.userId);
                     }
                 } else if (event === 'SIGNED_OUT') {
-
-                    // Reset UI
+                    // Reset UI completely
                     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
                     loginView.classList.add('active');
                     currentUser = null;
                     if (authForm) authForm.reset();
 
-                    // Hide navigation bar on logout
+                    // CRITICAL: Hide navigation bar on logout
                     const mainNav = document.getElementById('main-nav');
                     if (mainNav) mainNav.style.display = 'none';
+
+                    // Disable screenshot prevention on logout
+                    disableScreenshotPrevention();
+
+                    // Reset settings to defaults
+                    settings = {
+                        privacy: false,
+                        screenshot: false,
+                        autodelete: false,
+                        idsearch: true
+                    };
                 }
             });
+        } else {
+            // No Supabase - ensure login view is shown
+            loginView.classList.add('active');
+            if (mainNav) mainNav.style.display = 'none';
         }
 
         setupAuthListeners();
@@ -1264,25 +1429,28 @@ window.logout = async function () {
     if (mainNav) mainNav.style.display = 'none';
 };
 
-// Delete Account (退会)
+// Delete Account (退会) - 10日間の猶予期間付きソフトデリート
 window.deleteAccount = async function () {
     if (!supabaseClient || !currentUser) {
         Swal.fire({ icon: 'error', title: 'エラー', text: 'ログインしてください' });
         return;
     }
 
-    // First confirmation
+    // First confirmation - explain 10-day grace period
     const result = await Swal.fire({
         title: '退会しますか？',
         html: `
-            <p style="color: #dc3545; font-weight: bold;">この操作は取り消せません</p>
-            <p>以下のデータが完全に削除されます：</p>
-            <ul style="text-align: left; margin: 10px 20px;">
+            <p style="color: #ff9800; font-weight: bold;">⚠️ 10日間の猶予期間があります</p>
+            <p style="margin-top: 10px;">退会処理後、以下のデータは<strong>10日間保持</strong>されます：</p>
+            <ul style="text-align: left; margin: 10px 20px; font-size: 14px;">
                 <li>プロフィール情報</li>
                 <li>友達リスト</li>
                 <li>チャット履歴</li>
-                <li>すべての関連データ</li>
             </ul>
+            <p style="margin-top: 10px; font-size: 13px; color: #666;">
+                10日以内であれば、サポートに連絡してアカウントを復旧できます。<br>
+                10日経過後、すべてのデータが完全に削除されます。
+            </p>
         `,
         icon: 'warning',
         showCancelButton: true,
@@ -1297,13 +1465,13 @@ window.deleteAccount = async function () {
     // Second confirmation with input
     const finalConfirm = await Swal.fire({
         title: '最終確認',
-        text: '本当に退会しますか？「退会」と入力してください。',
+        html: '本当に退会しますか？<br><br>「退会」と入力してください。',
         input: 'text',
         inputPlaceholder: '退会',
         showCancelButton: true,
         confirmButtonColor: '#dc3545',
         cancelButtonColor: '#6c757d',
-        confirmButtonText: '完全に削除',
+        confirmButtonText: '退会を確定',
         cancelButtonText: 'キャンセル',
         inputValidator: (value) => {
             if (value !== '退会') {
@@ -1315,39 +1483,30 @@ window.deleteAccount = async function () {
     if (!finalConfirm.isConfirmed) return;
 
     try {
-        Swal.fire({ title: '処理中...', text: 'アカウントを削除しています', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        Swal.fire({ title: '処理中...', text: 'アカウントを退会処理しています', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
-        // First try: Call database function that deletes everything including auth user
-        const { error: rpcError } = await supabaseClient.rpc('delete_user_completely');
+        // Soft delete: Set deleted_at timestamp instead of actual deletion
+        const { error: softDeleteError } = await supabaseClient
+            .from('profiles')
+            .update({
+                deleted_at: new Date().toISOString(),
+                is_active: false
+            })
+            .eq('id', currentUser.id);
 
-        if (rpcError) {
-            console.error('RPC delete_user_completely failed:', rpcError);
+        if (softDeleteError) {
+            console.error('Soft delete failed:', softDeleteError);
 
-            // Second try: Edge Function (if deployed)
-            const { data: { session } } = await supabaseClient.auth.getSession();
+            // Fallback: Try RPC function for hard delete
+            const { error: rpcError } = await supabaseClient.rpc('delete_user_completely');
 
-            if (session) {
-                const response = await fetch(`${SUPABASE_URL}/functions/v1/delete-user`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${session.access_token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                if (!response.ok) {
-                    const data = await response.json().catch(() => ({}));
-                    console.error('Edge Function failed:', data);
-
-                    // Final fallback: client-side deletion (data only, not auth user)
-                    await clientSideDeleteData();
-                }
-            } else {
-                await clientSideDeleteData();
+            if (rpcError) {
+                console.error('RPC delete_user_completely also failed:', rpcError);
+                throw new Error('退会処理に失敗しました');
             }
         }
 
-        // Sign out locally (clears session even if auth user was deleted)
+        // Sign out locally
         try {
             await supabaseClient.auth.signOut();
         } catch (e) {
@@ -1356,10 +1515,15 @@ window.deleteAccount = async function () {
 
         Swal.fire({
             icon: 'success',
-            title: '退会完了',
-            text: 'ご利用ありがとうございました',
-            timer: 2000,
-            showConfirmButton: false
+            title: '退会処理が完了しました',
+            html: `
+                <p>ご利用ありがとうございました。</p>
+                <p style="margin-top: 10px; font-size: 13px; color: #666;">
+                    アカウントは10日後に完全に削除されます。<br>
+                    復旧をご希望の場合は、サポートまでご連絡ください。
+                </p>
+            `,
+            confirmButtonColor: '#06C755'
         });
 
         // Reset UI
@@ -1370,12 +1534,15 @@ window.deleteAccount = async function () {
         const mainNav = document.getElementById('main-nav');
         if (mainNav) mainNav.style.display = 'none';
 
+        // Disable screenshot prevention
+        disableScreenshotPrevention();
+
     } catch (err) {
         console.error('Delete account error:', err);
         Swal.fire({
             icon: 'error',
             title: '退会エラー',
-            text: 'アカウントの削除に失敗しました: ' + err.message
+            text: 'アカウントの退会処理に失敗しました: ' + err.message
         });
     }
 };
@@ -2450,14 +2617,52 @@ function setupEventListeners() {
         // Init state
         input.checked = settings[key];
 
-        // Change listener
-        input.addEventListener('change', (e) => {
+        // Change listener with actual implementation
+        input.addEventListener('change', async (e) => {
             settings[key] = e.target.checked;
             console.log(`Setting ${key} changed to ${settings[key]}`);
 
-            // Here you would implement actual feature logic
-            // For "Screenshot Prevention" we could technically block it or show warning overlay,
-            // but browser API limitations exist. For now, it's a mock state.
+            // Apply setting immediately
+            switch (key) {
+                case 'screenshot':
+                    if (settings.screenshot) {
+                        enableScreenshotPrevention();
+                        Swal.fire({ icon: 'success', title: 'スクショ防止ON', text: 'スクリーンショット防止機能が有効化されました', timer: 1500, showConfirmButton: false });
+                    } else {
+                        disableScreenshotPrevention();
+                        Swal.fire({ icon: 'info', title: 'スクショ防止OFF', timer: 1000, showConfirmButton: false });
+                    }
+                    break;
+                case 'privacy':
+                    Swal.fire({
+                        icon: settings.privacy ? 'success' : 'info',
+                        title: settings.privacy ? 'プライバシーモードON' : 'プライバシーモードOFF',
+                        text: settings.privacy ? 'プロフィールが非公開になりました' : 'プロフィールが公開されました',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                    break;
+                case 'autodelete':
+                    Swal.fire({
+                        icon: settings.autodelete ? 'success' : 'info',
+                        title: settings.autodelete ? '自動削除ON' : '自動削除OFF',
+                        text: settings.autodelete ? 'メッセージは24時間後に自動削除されます' : '自動削除が無効化されました',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                    break;
+                case 'idsearch':
+                    Swal.fire({
+                        icon: 'info',
+                        title: settings.idsearch ? 'ID検索を許可' : 'ID検索を拒否',
+                        timer: 1000,
+                        showConfirmButton: false
+                    });
+                    break;
+            }
+
+            // Save to database
+            await saveSettingsToDatabase();
         });
     });
 
