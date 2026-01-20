@@ -122,8 +122,8 @@ async function fetchDataInBackground() {
 async function fetchFriends() {
     if (!supabaseClient || !currentUser) return;
 
-    // Fetch friends where I am user_id
-    const { data, error } = await supabaseClient
+    // Fetch friends where I am user_id (I added the friend)
+    const { data: data1, error: error1 } = await supabaseClient
         .from('friends')
         .select(`
             friend_id,
@@ -137,19 +137,63 @@ async function fetchFriends() {
         `)
         .eq('user_id', currentUser.id);
 
-    if (error) {
-        console.error('Error fetching friends:', error);
-        return;
+    // Fetch friends where I am friend_id (friend added me)
+    const { data: data2, error: error2 } = await supabaseClient
+        .from('friends')
+        .select(`
+            user_id,
+            user:user_id (
+                id,
+                full_name,
+                avatar_url,
+                status_message,
+                user_id_search
+            )
+        `)
+        .eq('friend_id', currentUser.id);
+
+    if (error1) {
+        console.error('Error fetching friends (as user_id):', error1);
+    }
+    if (error2) {
+        console.error('Error fetching friends (as friend_id):', error2);
     }
 
-    // Map to App Format
-    friends = data.map(item => ({
-        id: item.friend.id,
-        userId: item.friend.user_id_search,
-        name: item.friend.full_name,
-        avatar: item.friend.avatar_url,
-        status: item.friend.status_message
-    }));
+    // Combine both results and remove duplicates
+    const friendMap = new Map();
+
+    // Add friends from first query (I added them)
+    if (data1) {
+        data1.forEach(item => {
+            if (item.friend) {
+                friendMap.set(item.friend.id, {
+                    id: item.friend.id,
+                    userId: item.friend.user_id_search,
+                    name: item.friend.full_name,
+                    avatar: item.friend.avatar_url,
+                    status: item.friend.status_message
+                });
+            }
+        });
+    }
+
+    // Add friends from second query (they added me)
+    if (data2) {
+        data2.forEach(item => {
+            if (item.user && !friendMap.has(item.user.id)) {
+                friendMap.set(item.user.id, {
+                    id: item.user.id,
+                    userId: item.user.user_id_search,
+                    name: item.user.full_name,
+                    avatar: item.user.avatar_url,
+                    status: item.user.status_message
+                });
+            }
+        });
+    }
+
+    // Convert map to array
+    friends = Array.from(friendMap.values());
 
     renderFriendList();
 }
@@ -1273,31 +1317,42 @@ window.deleteAccount = async function () {
     try {
         Swal.fire({ title: '処理中...', text: 'アカウントを削除しています', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
-        const userId = currentUser.id;
+        // First try: Call database function that deletes everything including auth user
+        const { error: rpcError } = await supabaseClient.rpc('delete_user_completely');
 
-        // Delete user's friends relationships
-        await supabaseClient.from('friends').delete().eq('user_id', userId);
-        await supabaseClient.from('friends').delete().eq('friend_id', userId);
+        if (rpcError) {
+            console.error('RPC delete_user_completely failed:', rpcError);
 
-        // Delete friend requests
-        await supabaseClient.from('friend_requests').delete().eq('from_user_id', userId);
-        await supabaseClient.from('friend_requests').delete().eq('to_user_id', userId);
+            // Second try: Edge Function (if deployed)
+            const { data: { session } } = await supabaseClient.auth.getSession();
 
-        // Delete chat memberships
-        await supabaseClient.from('chat_members').delete().eq('user_id', userId);
+            if (session) {
+                const response = await fetch(`${SUPABASE_URL}/functions/v1/delete-user`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${session.access_token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
 
-        // Delete profile
-        const { error: profileError } = await supabaseClient
-            .from('profiles')
-            .delete()
-            .eq('id', userId);
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    console.error('Edge Function failed:', data);
 
-        if (profileError) {
-            console.error('Profile deletion error:', profileError);
+                    // Final fallback: client-side deletion (data only, not auth user)
+                    await clientSideDeleteData();
+                }
+            } else {
+                await clientSideDeleteData();
+            }
         }
 
-        // Sign out (this will also invalidate the session)
-        await supabaseClient.auth.signOut();
+        // Sign out locally (clears session even if auth user was deleted)
+        try {
+            await supabaseClient.auth.signOut();
+        } catch (e) {
+            console.log('Sign out after deletion:', e);
+        }
 
         Swal.fire({
             icon: 'success',
@@ -1324,6 +1379,26 @@ window.deleteAccount = async function () {
         });
     }
 };
+
+// Client-side data deletion (fallback - does not delete auth user)
+async function clientSideDeleteData() {
+    if (!supabaseClient || !currentUser) return;
+
+    const userId = currentUser.id;
+    console.log('Using client-side deletion for user:', userId);
+
+    try {
+        await supabaseClient.from('friends').delete().eq('user_id', userId);
+        await supabaseClient.from('friends').delete().eq('friend_id', userId);
+        await supabaseClient.from('friend_requests').delete().eq('from_user_id', userId);
+        await supabaseClient.from('friend_requests').delete().eq('to_user_id', userId);
+        await supabaseClient.from('messages').delete().eq('sender_id', userId);
+        await supabaseClient.from('chat_members').delete().eq('user_id', userId);
+        await supabaseClient.from('profiles').delete().eq('id', userId);
+    } catch (e) {
+        console.error('Client-side deletion error:', e);
+    }
+}
 
 // Render Friend List
 function renderFriendList() {
