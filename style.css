@@ -86,7 +86,8 @@ body {
     min-height: var(--nav-height);
     background-color: #fff;
     border-top: 1px solid var(--border-color);
-    display: flex !important;
+    display: none;
+    /* Hidden by default, shown via JS when logged in */
     justify-content: space-around;
     align-items: flex-start;
     padding-top: 8px;
