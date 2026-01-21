@@ -100,11 +100,10 @@ async function generateUniqueUserId(maxRetries = 5) {
 // --- Data Fetching Functions ---
 
 async function fetchProfile() {
-    console.log('fetchProfile: Function started');
-    if (!supabaseClient) {
-        console.warn('fetchProfile: supabaseClient not initialized');
-        return;
-    }
+    if (!supabaseClient) return;
+
+    // Use currentUser.id if available (set by onAuthStateChange)
+    if (!currentUser || !currentUser.id) return;
 
     // Use currentUser.id if available (set by onAuthStateChange)
     // This avoids calling getUser() which can hang
@@ -115,7 +114,6 @@ async function fetchProfile() {
 
     try {
         const userId = currentUser.id;
-        console.log('fetchProfile: Fetching profile for user:', userId);
 
         // Fetch public profile
         const { data, error } = await supabaseClient
@@ -133,7 +131,6 @@ async function fetchProfile() {
         }
 
         if (data) {
-            console.log('fetchProfile: Profile data received:', data);
             currentUser.name = data.full_name || currentUser.name || 'Me';
             currentUser.avatar = data.avatar_url || currentUser.avatar;
             currentUser.status = data.status_message || '';
@@ -152,12 +149,10 @@ async function fetchProfile() {
                 }
             }
 
-            console.log('fetchProfile: Updated currentUser:', currentUser);
             updateMyProfileUI();
             updateSettingsUI();
             updateSettingsToggles();
         } else {
-            console.warn('fetchProfile: No profile data found for user:', userId);
             updateMyProfileUI();
             updateSettingsUI();
         }
@@ -295,19 +290,12 @@ function hideBlurOverlay() {
 
 // Fetch all data in background after login
 async function fetchDataInBackground() {
-    console.log('fetchDataInBackground started');
     try {
-        console.log('Calling fetchProfile...');
         await fetchProfile();
-        console.log('fetchProfile done, calling fetchFriends...');
         await fetchFriends();
-        console.log('fetchFriends done, calling fetchChats...');
         await fetchChats();
-        console.log('fetchChats done, calling fetchSchedule...');
         await fetchSchedule();
-        console.log('fetchSchedule done, calling fetchPendingRequests...');
         await fetchPendingRequests();
-        console.log('Background data fetching complete');
     } catch (err) {
         console.error('Error fetching data in background:', err);
     }
@@ -1222,13 +1210,9 @@ function init() {
 
                         // Fetch profile data from database (this updates currentUser with DB values)
                         // Use setTimeout to avoid blocking the auth callback which can cause hangs
-                        console.log('Scheduling fetchDataInBackground...');
                         setTimeout(async () => {
                             try {
-                                console.log('Starting fetchDataInBackground (from setTimeout)...');
                                 await fetchDataInBackground();
-                                console.log('fetchDataInBackground completed successfully');
-                                console.log('Session restored for:', currentUser?.name, 'ID:', currentUser?.userId);
                             } catch (bgError) {
                                 console.error('Error in fetchDataInBackground:', bgError);
                             }
