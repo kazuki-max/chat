@@ -1772,13 +1772,18 @@ window.startChatWithFriend = async function () {
         return;
     }
 
+    // Save friend info before closing modal (which sets selectedFriend to null)
+    const friendId = selectedFriend.id;
+    const friendName = selectedFriend.name;
+    const friendAvatar = selectedFriend.avatar;
+
     closeFriendProfileModal();
 
     try {
         Swal.fire({ title: 'チャットを作成中...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
         // Find existing DM chat or create new one
-        const chatId = await findOrCreateDMChat(selectedFriend.id, selectedFriend.name, selectedFriend.avatar);
+        const chatId = await findOrCreateDMChat(friendId, friendName, friendAvatar);
 
         Swal.close();
 
