@@ -1228,9 +1228,15 @@ function init() {
                         }
 
                         // Fetch profile data from database (this updates currentUser with DB values)
-                        await fetchDataInBackground();
+                        console.log('About to call fetchDataInBackground...');
+                        try {
+                            await fetchDataInBackground();
+                            console.log('fetchDataInBackground completed successfully');
+                        } catch (bgError) {
+                            console.error('Error in fetchDataInBackground:', bgError);
+                        }
 
-                        console.log('Session restored for:', currentUser.name, 'ID:', currentUser.userId);
+                        console.log('Session restored for:', currentUser?.name, 'ID:', currentUser?.userId);
                     }
                 } else if (event === 'SIGNED_OUT') {
                     // Reset UI completely
