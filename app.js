@@ -1303,11 +1303,43 @@ function setupAuthListeners() {
             if (isSignUp && name) options.data = { full_name: name };
 
             const { error } = await supabaseClient.auth.signInWithOtp({ email, options });
-            if (error) throw error;
+
+            if (error) {
+                // Check if the error is due to user not existing (login attempt with unregistered email)
+                if (!isSignUp && (error.message.includes('User not found') ||
+                    error.message.includes('Signups not allowed') ||
+                    error.message.includes('Email not confirmed') ||
+                    error.status === 400)) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'アカウントが見つかりません',
+                        html: `
+                            <p>このメールアドレスは登録されていません。</p>
+                            <p style="margin-top: 10px; font-size: 14px; color: #666;">
+                                新規登録画面から登録してください。
+                            </p>
+                        `,
+                        confirmButtonText: '新規登録へ',
+                        confirmButtonColor: '#06C755',
+                        showCancelButton: true,
+                        cancelButtonText: 'キャンセル'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            switchAuthMode('register');
+                            // Pre-fill the email in registration form
+                            const registerEmail = document.getElementById('register-email');
+                            if (registerEmail) registerEmail.value = email;
+                        }
+                    });
+                    return false;
+                }
+                throw error;
+            }
 
             Swal.fire({ icon: 'success', title: '認証コードを送信しました', text: `${email} のメールを確認`, timer: 3000, showConfirmButton: false });
             return true;
         } catch (err) {
+            console.error('OTP send error:', err);
             Swal.fire({ icon: 'error', title: '送信エラー', text: err.message });
             return false;
         }
