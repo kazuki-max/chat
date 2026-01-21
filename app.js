@@ -91,11 +91,36 @@ async function generateUniqueUserId(maxRetries = 5) {
 // --- Data Fetching Functions ---
 
 async function fetchProfile() {
-    if (!supabaseClient || !currentUser) return;
+    if (!supabaseClient) {
+        console.warn('fetchProfile: supabaseClient not initialized');
+        return;
+    }
 
-    const { data: { user } } = await supabaseClient.auth.getUser();
-    if (user) {
+    try {
+        const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+
+        if (userError) {
+            console.error('fetchProfile: Error getting user:', userError);
+            return;
+        }
+
+        if (!user) {
+            console.warn('fetchProfile: No authenticated user found');
+            return;
+        }
+
+        // Initialize currentUser if not already done
+        if (!currentUser) {
+            currentUser = {
+                id: user.id,
+                name: user.user_metadata?.full_name || user.email || 'User',
+                avatar: user.user_metadata?.avatar_url || 'https://placehold.co/100'
+            };
+        }
+
         currentUser.id = user.id;
+        console.log('fetchProfile: Fetching profile for user:', user.id);
+
         // Fetch public profile
         const { data, error } = await supabaseClient
             .from('profiles')
@@ -103,11 +128,20 @@ async function fetchProfile() {
             .eq('id', user.id)
             .single();
 
+        if (error) {
+            console.error('fetchProfile: Error fetching profile:', error);
+            // Still update UI with what we have
+            updateMyProfileUI();
+            updateSettingsUI();
+            return;
+        }
+
         if (data) {
-            currentUser.name = data.full_name || 'Me';
-            currentUser.avatar = data.avatar_url;
-            currentUser.status = data.status_message;
-            currentUser.userId = data.user_id_search;
+            console.log('fetchProfile: Profile data received:', data);
+            currentUser.name = data.full_name || currentUser.name || 'Me';
+            currentUser.avatar = data.avatar_url || currentUser.avatar;
+            currentUser.status = data.status_message || '';
+            currentUser.userId = data.user_id_search || '';
 
             // Load settings from database
             if (data.settings) {
@@ -122,10 +156,17 @@ async function fetchProfile() {
                 }
             }
 
+            console.log('fetchProfile: Updated currentUser:', currentUser);
             updateMyProfileUI();
             updateSettingsUI();
             updateSettingsToggles();
+        } else {
+            console.warn('fetchProfile: No profile data found for user:', user.id);
+            updateMyProfileUI();
+            updateSettingsUI();
         }
+    } catch (err) {
+        console.error('fetchProfile: Unexpected error:', err);
     }
 }
 
