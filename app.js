@@ -308,11 +308,17 @@ function hideBlurOverlay() {
 
 // Fetch all data in background after login
 async function fetchDataInBackground() {
+    console.log('fetchDataInBackground started');
     try {
+        console.log('Calling fetchProfile...');
         await fetchProfile();
+        console.log('fetchProfile done, calling fetchFriends...');
         await fetchFriends();
+        console.log('fetchFriends done, calling fetchChats...');
         await fetchChats();
+        console.log('fetchChats done, calling fetchSchedule...');
         await fetchSchedule();
+        console.log('fetchSchedule done, calling fetchPendingRequests...');
         await fetchPendingRequests();
         console.log('Background data fetching complete');
     } catch (err) {
