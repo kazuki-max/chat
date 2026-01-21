@@ -106,38 +106,22 @@ async function fetchProfile() {
         return;
     }
 
+    // Use currentUser.id if available (set by onAuthStateChange)
+    // This avoids calling getUser() which can hang
+    if (!currentUser || !currentUser.id) {
+        console.warn('fetchProfile: No currentUser.id available');
+        return;
+    }
+
     try {
-        console.log('fetchProfile: Calling getUser...');
-        const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
-        console.log('fetchProfile: getUser completed, user:', user?.id);
-
-        if (userError) {
-            console.error('fetchProfile: Error getting user:', userError);
-            return;
-        }
-
-        if (!user) {
-            console.warn('fetchProfile: No authenticated user found');
-            return;
-        }
-
-        // Initialize currentUser if not already done
-        if (!currentUser) {
-            currentUser = {
-                id: user.id,
-                name: user.user_metadata?.full_name || user.email || 'User',
-                avatar: user.user_metadata?.avatar_url || 'https://placehold.co/100'
-            };
-        }
-
-        currentUser.id = user.id;
-        console.log('fetchProfile: Fetching profile for user:', user.id);
+        const userId = currentUser.id;
+        console.log('fetchProfile: Fetching profile for user:', userId);
 
         // Fetch public profile
         const { data, error } = await supabaseClient
             .from('profiles')
             .select('*')
-            .eq('id', user.id)
+            .eq('id', userId)
             .single();
 
         if (error) {
@@ -173,7 +157,7 @@ async function fetchProfile() {
             updateSettingsUI();
             updateSettingsToggles();
         } else {
-            console.warn('fetchProfile: No profile data found for user:', user.id);
+            console.warn('fetchProfile: No profile data found for user:', userId);
             updateMyProfileUI();
             updateSettingsUI();
         }
