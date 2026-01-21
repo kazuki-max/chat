@@ -136,6 +136,25 @@ async function fetchProfile() {
             currentUser.status = data.status_message || '';
             currentUser.userId = data.user_id_search || '';
 
+            // Auto-generate user ID if not set
+            if (!data.user_id_search) {
+                console.log('User ID not set, generating one...');
+                const newId = await generateUniqueUserId();
+                if (newId) {
+                    const { error: updateError } = await supabaseClient
+                        .from('profiles')
+                        .update({ user_id_search: newId })
+                        .eq('id', userId);
+
+                    if (!updateError) {
+                        currentUser.userId = newId;
+                        console.log('Auto-generated user ID:', newId);
+                    } else {
+                        console.error('Failed to save auto-generated ID:', updateError);
+                    }
+                }
+            }
+
             // Load settings from database
             if (data.settings) {
                 try {
