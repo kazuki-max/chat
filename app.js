@@ -100,13 +100,16 @@ async function generateUniqueUserId(maxRetries = 5) {
 // --- Data Fetching Functions ---
 
 async function fetchProfile() {
+    console.log('fetchProfile: Function started');
     if (!supabaseClient) {
         console.warn('fetchProfile: supabaseClient not initialized');
         return;
     }
 
     try {
+        console.log('fetchProfile: Calling getUser...');
         const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+        console.log('fetchProfile: getUser completed, user:', user?.id);
 
         if (userError) {
             console.error('fetchProfile: Error getting user:', userError);
