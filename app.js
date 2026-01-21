@@ -439,45 +439,52 @@ async function fetchFriends() {
 async function fetchChats() {
     if (!supabaseClient || !currentUser) return;
 
-    // Get Chat IDs I belong to
-    const { data: myChats, error } = await supabaseClient
-        .from('chat_members')
-        .select(`
-            chat_id,
-            chat:chat_id (
-                id,
-                name,
-                is_group,
-                created_at
-            )
-        `)
-        .eq('user_id', currentUser.id);
+    try {
+        // Step 1: Get chat IDs I belong to (simple query, no JOIN)
+        const { data: myMemberships, error: memberError } = await supabaseClient
+            .from('chat_members')
+            .select('chat_id')
+            .eq('user_id', currentUser.id);
 
-    if (error) {
-        console.error('Fetch chats error:', error);
-        return;
-    }
+        if (memberError) {
+            console.error('Fetch chat memberships error:', memberError);
+            return;
+        }
 
-    // Transform and fetch last messages (simplified)
-    // Real app would join messages or fetch latest
-    const loadedChats = await Promise.all(myChats.map(async (item) => {
-        const chat = item.chat;
-        // Mock last message for now or fetch real one
-        // Ideally: select * from messages where chat_id=... order by created_at desc limit 1
+        if (!myMemberships || myMemberships.length === 0) {
+            chats = [];
+            renderChatList();
+            return;
+        }
 
-        return {
+        // Step 2: Get chat details separately (avoid JOIN)
+        const chatIds = myMemberships.map(m => m.chat_id);
+        const { data: chatDetails, error: chatError } = await supabaseClient
+            .from('chats')
+            .select('id, name, is_group, created_at')
+            .in('id', chatIds);
+
+        if (chatError) {
+            console.error('Fetch chat details error:', chatError);
+            return;
+        }
+
+        // Transform data
+        const loadedChats = chatDetails.map(chat => ({
             id: chat.id,
-            name: chat.name || 'Chat', // If null, maybe use friend name?
-            avatar: 'https://i.pravatar.cc/150?u=' + chat.id,
+            name: chat.name || 'Chat',
+            avatar: 'https://placehold.co/100/06C755/white?text=C',
             lastMessage: '...',
             time: '',
             unread: 0,
-            messages: [] // Will fetch on open
-        };
-    }));
+            messages: []
+        }));
 
-    chats = loadedChats;
-    renderChatList();
+        chats = loadedChats;
+        renderChatList();
+    } catch (err) {
+        console.error('Fetch chats unexpected error:', err);
+    }
 }
 
 // Fetch schedule/appointments from database (stub for now)
