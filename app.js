@@ -445,12 +445,18 @@ async function fetchSchedule() {
 
 
 function updateMyProfileUI() {
+    console.log('updateMyProfileUI called, currentUser:', currentUser);
     const nameData = document.getElementById('my-name') || document.querySelector('.my-profile .profile-name');
     const statusData = document.getElementById('my-status') || document.querySelector('.my-profile .profile-status');
     const avatarData = document.getElementById('my-avatar') || document.querySelector('.my-profile .avatar-large');
 
-    if (nameData && currentUser) nameData.textContent = currentUser.name || 'Me';
-    if (statusData && currentUser) statusData.textContent = currentUser.status || 'ステータスメッセージを追加';
+    if (nameData && currentUser) {
+        nameData.textContent = currentUser.name || 'Me';
+        console.log('Updated name to:', currentUser.name);
+    }
+    if (statusData && currentUser) {
+        statusData.textContent = currentUser.status || 'ステータスメッセージを追加';
+    }
     if (avatarData && currentUser && currentUser.avatar) {
         avatarData.style.backgroundImage = `url('${currentUser.avatar}')`;
     }
@@ -458,16 +464,22 @@ function updateMyProfileUI() {
 
 // Update Settings UI with user ID
 function updateSettingsUI() {
+    console.log('updateSettingsUI called, currentUser:', currentUser);
+
     // Update settings page ID display
     const userIdDisplay = document.getElementById('user-id-display');
-    if (userIdDisplay && currentUser && currentUser.userId) {
-        userIdDisplay.textContent = currentUser.userId;
+    if (userIdDisplay && currentUser) {
+        const displayValue = currentUser.userId || '未設定';
+        userIdDisplay.textContent = displayValue;
+        console.log('Updated settings user-id-display to:', displayValue);
     }
 
     // Update home profile ID display
     const myIdDisplay = document.getElementById('my-id-display');
-    if (myIdDisplay && currentUser && currentUser.userId) {
-        myIdDisplay.innerHTML = `<i class="fa-solid fa-at"></i> ${currentUser.userId}`;
+    if (myIdDisplay && currentUser) {
+        const displayValue = currentUser.userId || '未設定';
+        myIdDisplay.innerHTML = `<i class="fa-solid fa-at"></i> ${displayValue}`;
+        console.log('Updated home my-id-display to:', displayValue);
     }
 }
 
