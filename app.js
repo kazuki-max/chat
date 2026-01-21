@@ -1157,10 +1157,10 @@ function init() {
                             adminView.classList.add('active');
                             if (mainNav) mainNav.style.display = 'none';
                         } else {
-                            chatListView.classList.add('active');
+                            homeView.classList.add('active');
                             if (mainNav) mainNav.style.display = 'flex';
                             navItems.forEach(n => {
-                                if (n.dataset.target === 'chat-list-view') n.classList.add('active');
+                                if (n.dataset.target === 'home-view') n.classList.add('active');
                                 else n.classList.remove('active');
                             });
                         }
