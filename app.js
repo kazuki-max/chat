@@ -122,6 +122,43 @@ async function fetchProfile() {
             .eq('id', userId)
             .single();
 
+        // If profile doesn't exist (PGRST116 = no rows), create it
+        if (error && error.code === 'PGRST116') {
+            console.log('Profile not found, creating one...');
+            const newId = await generateUniqueUserId();
+            const newProfile = {
+                id: userId,
+                full_name: currentUser.name || 'User',
+                user_id_search: newId,
+                avatar_url: currentUser.avatar || null,
+                created_at: new Date().toISOString()
+            };
+
+            const { data: createdProfile, error: insertError } = await supabaseClient
+                .from('profiles')
+                .insert(newProfile)
+                .select()
+                .single();
+
+            if (insertError) {
+                console.error('Failed to create profile:', insertError);
+                updateMyProfileUI();
+                updateSettingsUI();
+                return;
+            }
+
+            console.log('Profile created successfully:', createdProfile);
+            currentUser.name = createdProfile.full_name;
+            currentUser.userId = createdProfile.user_id_search;
+            currentUser.avatar = createdProfile.avatar_url || currentUser.avatar;
+            currentUser.status = createdProfile.status_message || '';
+
+            updateMyProfileUI();
+            updateSettingsUI();
+            updateSettingsToggles();
+            return;
+        }
+
         if (error) {
             console.error('fetchProfile: Error fetching profile:', error);
             // Still update UI with what we have
