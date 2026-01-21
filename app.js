@@ -10,7 +10,16 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 let supabaseClient = null;
 try {
     if (typeof supabase !== 'undefined') {
-        supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+            auth: {
+                persistSession: true,
+                storageKey: 'chat-app-auth',
+                storage: window.localStorage,
+                autoRefreshToken: true,
+                detectSessionInUrl: true
+            }
+        });
+        console.log('Supabase client initialized with session persistence');
     } else {
         console.warn('Supabase JS library not loaded.');
     }
