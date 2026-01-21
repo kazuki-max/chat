@@ -1221,15 +1221,18 @@ function init() {
                         }
 
                         // Fetch profile data from database (this updates currentUser with DB values)
-                        console.log('About to call fetchDataInBackground...');
-                        try {
-                            await fetchDataInBackground();
-                            console.log('fetchDataInBackground completed successfully');
-                        } catch (bgError) {
-                            console.error('Error in fetchDataInBackground:', bgError);
-                        }
-
-                        console.log('Session restored for:', currentUser?.name, 'ID:', currentUser?.userId);
+                        // Use setTimeout to avoid blocking the auth callback which can cause hangs
+                        console.log('Scheduling fetchDataInBackground...');
+                        setTimeout(async () => {
+                            try {
+                                console.log('Starting fetchDataInBackground (from setTimeout)...');
+                                await fetchDataInBackground();
+                                console.log('fetchDataInBackground completed successfully');
+                                console.log('Session restored for:', currentUser?.name, 'ID:', currentUser?.userId);
+                            } catch (bgError) {
+                                console.error('Error in fetchDataInBackground:', bgError);
+                            }
+                        }, 100);
                     }
                 } else if (event === 'SIGNED_OUT') {
                     // Reset UI completely
