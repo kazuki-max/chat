@@ -2024,6 +2024,10 @@ function openChat(id) {
     // Clear previous view or show cached
     renderMessages(chat.messages);
 
+    // Hide footer nav when in chat room
+    const mainNav = document.getElementById('main-nav');
+    if (mainNav) mainNav.style.display = 'none';
+
     // Transition View
     chatRoomView.classList.add('active');
 
@@ -2668,6 +2672,11 @@ function setupEventListeners() {
     backBtn.addEventListener('click', () => {
         chatRoomView.classList.remove('active');
         currentChatId = null;
+
+        // Show footer nav when leaving chat room
+        const mainNav = document.getElementById('main-nav');
+        if (mainNav) mainNav.style.display = 'flex';
+
         renderChatList();
     });
 
