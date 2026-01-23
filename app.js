@@ -469,18 +469,74 @@ async function fetchChats() {
             return;
         }
 
-        // Transform data
-        const loadedChats = chatDetails.map(chat => ({
-            id: chat.id,
-            name: chat.name || 'Chat',
-            avatar: 'https://placehold.co/100/06C755/white?text=C',
-            lastMessage: '...',
-            time: '',
-            unread: 0,
-            messages: []
+        // Step 3: Get last message for each chat
+        const loadedChats = await Promise.all(chatDetails.map(async (chat) => {
+            // Get the latest message for this chat
+            const { data: lastMsgData } = await supabaseClient
+                .from('messages')
+                .select('content, created_at, sender_id')
+                .eq('chat_id', chat.id)
+                .order('created_at', { ascending: false })
+                .limit(1);
+
+            const lastMsg = lastMsgData && lastMsgData[0];
+            let lastMessage = '新しいチャット';
+            let lastTime = '';
+
+            if (lastMsg) {
+                lastMessage = lastMsg.content || '';
+                // Format time like LINE (今日なら時間、それ以外は日付)
+                const msgDate = new Date(lastMsg.created_at);
+                const today = new Date();
+                if (msgDate.toDateString() === today.toDateString()) {
+                    lastTime = msgDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+                } else {
+                    lastTime = msgDate.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
+                }
+            }
+
+            // Get other member's info for DM chats (for avatar)
+            let avatar = 'https://placehold.co/100/06C755/white?text=C';
+            if (!chat.is_group) {
+                const { data: otherMembers } = await supabaseClient
+                    .from('chat_members')
+                    .select('user_id')
+                    .eq('chat_id', chat.id)
+                    .neq('user_id', currentUser.id)
+                    .limit(1);
+
+                if (otherMembers && otherMembers[0]) {
+                    const { data: profile } = await supabaseClient
+                        .from('profiles')
+                        .select('avatar_url, full_name')
+                        .eq('id', otherMembers[0].user_id)
+                        .single();
+
+                    if (profile) {
+                        avatar = profile.avatar_url || `https://placehold.co/100/06C755/white?text=${(profile.full_name || 'U').charAt(0)}`;
+                    }
+                }
+            }
+
+            return {
+                id: chat.id,
+                name: chat.name || 'Chat',
+                avatar: avatar,
+                lastMessage: lastMessage,
+                time: lastTime,
+                unread: 0, // TODO: Implement unread count
+                messages: []
+            };
         }));
 
-        chats = loadedChats;
+        // Sort by last message time (most recent first)
+        chats = loadedChats.sort((a, b) => {
+            if (!a.time && !b.time) return 0;
+            if (!a.time) return 1;
+            if (!b.time) return -1;
+            return 0; // Keep original order for now
+        });
+
         renderChatList();
     } catch (err) {
         console.error('Fetch chats unexpected error:', err);
