@@ -518,13 +518,34 @@ async function fetchChats() {
                 }
             }
 
+            // Get unread count for this chat
+            // Count messages in this chat that are not read by current user and not sent by current user
+            const { data: allMessages } = await supabaseClient
+                .from('messages')
+                .select('id, sender_id')
+                .eq('chat_id', chat.id)
+                .neq('sender_id', currentUser.id);
+
+            let unreadCount = 0;
+            if (allMessages && allMessages.length > 0) {
+                const messageIds = allMessages.map(m => m.id);
+                const { data: readMessages } = await supabaseClient
+                    .from('message_reads')
+                    .select('message_id')
+                    .eq('user_id', currentUser.id)
+                    .in('message_id', messageIds);
+
+                const readMessageIds = readMessages ? readMessages.map(r => r.message_id) : [];
+                unreadCount = allMessages.filter(m => !readMessageIds.includes(m.id)).length;
+            }
+
             return {
                 id: chat.id,
                 name: chat.name || 'Chat',
                 avatar: avatar,
                 lastMessage: lastMessage,
                 time: lastTime,
-                unread: 0, // TODO: Implement unread count
+                unread: unreadCount,
                 messages: []
             };
         }));
@@ -2087,10 +2108,57 @@ function openChat(id) {
     // Transition View
     chatRoomView.classList.add('active');
 
-    // Fetch Real Messages
+    // Fetch Real Messages and mark as read
     if (supabaseClient) {
         fetchMessages(id);
         subscribeToChat(id);
+        markMessagesAsRead(id);
+    }
+}
+
+// Mark all messages in a chat as read
+async function markMessagesAsRead(chatId) {
+    if (!supabaseClient || !currentUser) return;
+
+    try {
+        // Get all unread messages in this chat (not sent by current user)
+        const { data: messages } = await supabaseClient
+            .from('messages')
+            .select('id')
+            .eq('chat_id', chatId)
+            .neq('sender_id', currentUser.id);
+
+        if (!messages || messages.length === 0) return;
+
+        // Get already read messages
+        const messageIds = messages.map(m => m.id);
+        const { data: alreadyRead } = await supabaseClient
+            .from('message_reads')
+            .select('message_id')
+            .eq('user_id', currentUser.id)
+            .in('message_id', messageIds);
+
+        const alreadyReadIds = alreadyRead ? alreadyRead.map(r => r.message_id) : [];
+        const unreadMessageIds = messageIds.filter(id => !alreadyReadIds.includes(id));
+
+        if (unreadMessageIds.length === 0) return;
+
+        // Insert read records for unread messages
+        const readRecords = unreadMessageIds.map(msgId => ({
+            message_id: msgId,
+            user_id: currentUser.id
+        }));
+
+        await supabaseClient.from('message_reads').insert(readRecords);
+
+        // Update local unread count
+        const chatIndex = chats.findIndex(c => c.id === chatId);
+        if (chatIndex !== -1) {
+            chats[chatIndex].unread = 0;
+            renderChatList();
+        }
+    } catch (err) {
+        console.error('Error marking messages as read:', err);
     }
 }
 
