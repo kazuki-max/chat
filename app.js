@@ -2239,7 +2239,7 @@ window.notifyArrivalWithGPS = async function (chatId) {
 
     Swal.fire({
         title: '📍 位置情報を取得中...',
-        text: 'GPSで現在地を取得しています',
+        text: 'GPSで現在地を取得しています（最大30秒）',
         allowOutsideClick: false,
         didOpen: () => Swal.showLoading()
     });
@@ -2291,16 +2291,25 @@ window.notifyArrivalWithGPS = async function (chatId) {
                 Swal.fire({ icon: 'error', title: 'エラー', text: '通知の送信に失敗しました' });
             }
         },
-        (error) => {
+        async (error) => {
             Swal.close();
             console.error('GPS Error:', error);
-            let errorMessage = 'GPSで位置情報を取得できませんでした';
-            if (error.code === 1) errorMessage = '位置情報の使用が許可されていません';
-            if (error.code === 2) errorMessage = '位置情報を取得できませんでした';
-            if (error.code === 3) errorMessage = '位置情報の取得がタイムアウトしました';
-            Swal.fire({ icon: 'error', title: 'GPS エラー', text: errorMessage });
+
+            // Offer to send simple notification instead
+            const result = await Swal.fire({
+                icon: 'warning',
+                title: 'GPS取得失敗',
+                text: '位置情報を取得できませんでした。位置情報なしで到着通知を送信しますか？',
+                showCancelButton: true,
+                confirmButtonText: 'はい、送信する',
+                cancelButtonText: 'キャンセル'
+            });
+
+            if (result.isConfirmed) {
+                await window.notifyArrivalSimple(chatId);
+            }
         },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        { enableHighAccuracy: false, timeout: 30000, maximumAge: 60000 }
     );
 };
 
