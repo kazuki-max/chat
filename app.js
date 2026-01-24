@@ -2131,16 +2131,136 @@ function renderSchedule() {
         const item = document.createElement('div');
         item.className = 'schedule-item';
         item.innerHTML = `
-            <div class="schedule-title">${app.chatName ? app.chatName + ' : ' : ''}${app.location}</div>
-            <div class="schedule-row"><i class="fa-regular fa-clock"></i> ${app.date} ${app.time}</div>
+            <div class="schedule-header">
+                <div class="schedule-title">${app.chatName ? app.chatName + ' : ' : ''}${app.location || '場所未設定'}</div>
+            </div>
+            <div class="schedule-row"><i class="fa-regular fa-calendar"></i> ${app.date || '日付未定'}</div>
+            <div class="schedule-row"><i class="fa-regular fa-clock"></i> ${app.time || '時間未定'}</div>
             <div class="schedule-row"><i class="fa-solid fa-align-left"></i> ${app.details || '詳細なし'}</div>
+            <div class="schedule-actions">
+                <button class="schedule-btn arrival-btn" onclick="notifyArrival('${app.id}', '${app.chatId}')">
+                    <i class="fa-solid fa-location-dot"></i> 到着通知
+                </button>
+                <button class="schedule-btn chat-btn" onclick="openChat('${app.chatId}')">
+                    <i class="fa-solid fa-comment"></i> チャット
+                </button>
+                <button class="schedule-btn cancel-btn" onclick="cancelEventParticipation('${app.id}')">
+                    <i class="fa-solid fa-xmark"></i> キャンセル
+                </button>
+            </div>
         `;
-        if (app.chatId) {
-            item.onclick = () => openChat(app.chatId);
-            item.style.cursor = 'pointer';
-        }
         scheduleListContainer.appendChild(item);
     });
+}
+
+// Cancel event participation
+window.cancelEventParticipation = async function (messageId) {
+    if (!supabaseClient || !currentUser) return;
+
+    const confirmed = await Swal.fire({
+        title: 'キャンセル確認',
+        text: 'この予定への参加をキャンセルしますか？',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'キャンセルする',
+        cancelButtonText: '戻る'
+    });
+
+    if (!confirmed.isConfirmed) return;
+
+    try {
+        await supabaseClient
+            .from('event_participants')
+            .delete()
+            .eq('message_id', messageId)
+            .eq('user_id', currentUser.id);
+
+        // Update local state
+        joinedEvents = joinedEvents.filter(id => id !== messageId);
+
+        // Re-fetch and render schedule
+        await fetchSchedule();
+
+        Swal.fire({
+            icon: 'success',
+            title: 'キャンセルしました',
+            timer: 1500,
+            showConfirmButton: false
+        });
+    } catch (err) {
+        console.error('Error canceling event:', err);
+        Swal.fire({ icon: 'error', title: 'エラー', text: 'キャンセルに失敗しました' });
+    }
+};
+
+// Notify arrival at meeting location
+window.notifyArrival = async function (messageId, chatId) {
+    if (!supabaseClient || !currentUser) return;
+
+    // Try to get GPS location
+    if ('geolocation' in navigator) {
+        Swal.fire({
+            title: '位置情報を取得中...',
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading()
+        });
+
+        navigator.geolocation.getCurrentPosition(
+            async (position) => {
+                const { latitude, longitude } = position.coords;
+                await sendArrivalNotification(chatId, latitude, longitude);
+            },
+            async (error) => {
+                console.error('GPS Error:', error);
+                // Send without GPS
+                await sendArrivalNotification(chatId, null, null);
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    } else {
+        // GPS not available, send without location
+        await sendArrivalNotification(chatId, null, null);
+    }
+};
+
+// Send arrival notification message
+async function sendArrivalNotification(chatId, lat, lng) {
+    try {
+        let content = '📍 待ち合わせ場所に到着しました！';
+        let locationData = null;
+
+        if (lat && lng) {
+            content = `📍 待ち合わせ場所に到着しました！`;
+            locationData = { lat, lng };
+        }
+
+        const { error } = await supabaseClient
+            .from('messages')
+            .insert({
+                chat_id: chatId,
+                sender_id: currentUser.id,
+                content: content,
+                type: 'arrival',
+                data: locationData
+            });
+
+        Swal.close();
+
+        if (error) throw error;
+
+        Swal.fire({
+            icon: 'success',
+            title: '到着を通知しました',
+            text: 'チャット相手に到着通知が送信されました',
+            timer: 2000,
+            showConfirmButton: false
+        });
+    } catch (err) {
+        console.error('Error sending arrival notification:', err);
+        Swal.fire({ icon: 'error', title: 'エラー', text: '通知の送信に失敗しました' });
+    }
 }
 
 // Open Chat
@@ -2720,6 +2840,22 @@ function renderMessage(msg) {
                             ${isJoined ? '参加中' : '参加する'}
                         </button>
                     </div>
+                </div>
+            </div>
+            <div class="message-meta">${msg.time}</div>
+        `;
+    } else if (msg.type === 'arrival') {
+        const hasLocation = msg.eventData?.lat && msg.eventData?.lng;
+        innerHTML += `
+            <div class="message-content">
+                <div class="bubble arrival-bubble">
+                    <div class="arrival-header"><i class="fa-solid fa-location-dot"></i> 到着通知</div>
+                    <div class="arrival-text">${msg.text || '待ち合わせ場所に到着しました！'}</div>
+                    ${hasLocation ? `
+                        <a href="https://www.google.com/maps?q=${msg.eventData.lat},${msg.eventData.lng}" target="_blank" class="map-link">
+                            <i class="fa-solid fa-map"></i> 地図で確認
+                        </a>
+                    ` : ''}
                 </div>
             </div>
             <div class="message-meta">${msg.time}</div>

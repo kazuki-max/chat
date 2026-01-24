@@ -512,10 +512,16 @@ header {
     border-left: 4px solid var(--line-green);
 }
 
+.schedule-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
 .schedule-title {
     font-weight: bold;
     font-size: 16px;
-    margin-bottom: 8px;
 }
 
 .schedule-row {
@@ -529,6 +535,106 @@ header {
 .schedule-row i {
     width: 20px;
     color: var(--text-secondary);
+}
+
+.schedule-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+
+.schedule-btn {
+    flex: 1;
+    min-width: 80px;
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: all 0.2s;
+}
+
+.schedule-btn.arrival-btn {
+    background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
+    color: #fff;
+}
+
+.schedule-btn.arrival-btn:hover {
+    transform: scale(1.02);
+    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.4);
+}
+
+.schedule-btn.chat-btn {
+    background: linear-gradient(135deg, #2196F3 0%, #1565C0 100%);
+    color: #fff;
+}
+
+.schedule-btn.chat-btn:hover {
+    transform: scale(1.02);
+    box-shadow: 0 2px 8px rgba(33, 150, 243, 0.4);
+}
+
+.schedule-btn.cancel-btn {
+    background: #f5f5f5;
+    color: #999;
+}
+
+.schedule-btn.cancel-btn:hover {
+    background: #ffebee;
+    color: #d33;
+}
+
+/* Arrival Message Bubble */
+.bubble.arrival-bubble {
+    padding: 0;
+    overflow: hidden;
+    background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+    border: 1px solid #a5d6a7;
+}
+
+.arrival-header {
+    background: rgba(76, 175, 80, 0.15);
+    padding: 10px 12px;
+    font-weight: bold;
+    font-size: 13px;
+    color: #2e7d32;
+}
+
+.arrival-header i {
+    color: #4CAF50;
+    margin-right: 6px;
+}
+
+.arrival-text {
+    padding: 12px;
+    font-size: 14px;
+    color: #333;
+}
+
+.map-link {
+    display: block;
+    padding: 10px 12px;
+    background: rgba(76, 175, 80, 0.1);
+    color: #2e7d32;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    border-top: 1px solid #a5d6a7;
+    text-align: center;
+}
+
+.map-link:hover {
+    background: rgba(76, 175, 80, 0.2);
+}
+
+.map-link i {
+    margin-right: 6px;
 }
 
 /* Event Message Bubble */
