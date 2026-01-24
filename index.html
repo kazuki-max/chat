@@ -257,6 +257,16 @@
                     </div>
                 </div>
 
+                <!-- Block List Section -->
+                <div class="settings-section block-section">
+                    <div class="settings-section-header">
+                        <i class="fa-solid fa-ban"></i> ブロックリスト
+                    </div>
+                    <div id="block-list-container" class="block-list-container">
+                        <div class="empty-state">ブロックしているユーザーはいません</div>
+                    </div>
+                </div>
+
                 <!-- Account Actions Section -->
                 <div class="settings-section account-section">
                     <div class="settings-item" onclick="logout()" style="cursor: pointer;">
@@ -458,6 +468,9 @@
                         <i class="fa-solid fa-comment"></i> チャットを開始
                     </button>
                     <button type="button" class="btn-cancel" id="close-friend-profile-btn">閉じる</button>
+                    <button type="button" class="block-user-btn" id="btn-block-friend">
+                        <i class="fa-solid fa-ban"></i> ブロック
+                    </button>
                 </div>
             </div>
         </div>

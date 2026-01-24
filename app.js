@@ -34,6 +34,7 @@ let isRegisterMode = false;
 let isOtpMode = false;
 let currentSubscription = null; // Store realtime channel
 let joinedEvents = []; // Array of message IDs for events user has joined
+let blockedUsers = []; // Array of blocked user IDs
 let settings = {
     privacy: false,
     screenshot: false,
@@ -352,6 +353,7 @@ async function fetchDataInBackground() {
         await fetchFriends();
         await fetchChats();
         await fetchSchedule();
+        await fetchBlockedUsers();
         await fetchPendingRequests();
     } catch (err) {
         console.error('Error fetching data in background:', err);
@@ -624,6 +626,137 @@ async function fetchSchedule() {
     } catch (err) {
         console.error('Fetch schedule error:', err);
         renderSchedule();
+    }
+}
+
+// ========================================
+//  Block User Functions
+// ========================================
+
+// Fetch blocked users list
+async function fetchBlockedUsers() {
+    if (!supabaseClient || !currentUser) return;
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('user_blocks')
+            .select('blocked_id')
+            .eq('blocker_id', currentUser.id);
+
+        if (error) {
+            console.error('Error fetching blocked users:', error);
+            return;
+        }
+
+        blockedUsers = data ? data.map(b => b.blocked_id) : [];
+        renderBlockList();
+    } catch (err) {
+        console.error('Fetch blocked users error:', err);
+    }
+}
+
+// Block a user
+window.blockUser = async function (userId, userName) {
+    if (!supabaseClient || !currentUser) return;
+
+    const confirmed = await Swal.fire({
+        title: 'ブロック確認',
+        text: `${userName || 'このユーザー'}をブロックしますか？ブロックすると相手からのメッセージが届かなくなります。`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'ブロックする',
+        cancelButtonText: 'キャンセル'
+    });
+
+    if (!confirmed.isConfirmed) return;
+
+    try {
+        await supabaseClient
+            .from('user_blocks')
+            .insert({
+                blocker_id: currentUser.id,
+                blocked_id: userId
+            });
+
+        blockedUsers.push(userId);
+        renderBlockList();
+
+        Swal.fire({
+            icon: 'success',
+            title: 'ブロックしました',
+            timer: 1500,
+            showConfirmButton: false
+        });
+    } catch (err) {
+        console.error('Error blocking user:', err);
+        Swal.fire({ icon: 'error', title: 'エラー', text: 'ブロックに失敗しました' });
+    }
+};
+
+// Unblock a user
+window.unblockUser = async function (userId) {
+    if (!supabaseClient || !currentUser) return;
+
+    try {
+        await supabaseClient
+            .from('user_blocks')
+            .delete()
+            .eq('blocker_id', currentUser.id)
+            .eq('blocked_id', userId);
+
+        blockedUsers = blockedUsers.filter(id => id !== userId);
+        renderBlockList();
+
+        Swal.fire({
+            icon: 'success',
+            title: 'ブロックを解除しました',
+            timer: 1500,
+            showConfirmButton: false
+        });
+    } catch (err) {
+        console.error('Error unblocking user:', err);
+        Swal.fire({ icon: 'error', title: 'エラー', text: 'ブロック解除に失敗しました' });
+    }
+};
+
+// Render block list in settings
+async function renderBlockList() {
+    const blockListContainer = document.getElementById('block-list-container');
+    if (!blockListContainer) return;
+
+    if (blockedUsers.length === 0) {
+        blockListContainer.innerHTML = '<div class="empty-state">ブロックしているユーザーはいません</div>';
+        return;
+    }
+
+    // Get user profiles for blocked users
+    try {
+        const { data: profiles } = await supabaseClient
+            .from('profiles')
+            .select('id, full_name, avatar_url')
+            .in('id', blockedUsers);
+
+        let html = '';
+        (profiles || []).forEach(profile => {
+            html += `
+                <div class="block-item">
+                    <div class="block-user-info">
+                        <div class="block-avatar" style="background-image: url('${profile.avatar_url || 'https://placehold.co/40/06C755/white?text=' + (profile.full_name || 'U').charAt(0)}')"></div>
+                        <span class="block-name">${profile.full_name || '名前未設定'}</span>
+                    </div>
+                    <button class="unblock-btn" onclick="unblockUser('${profile.id}')">
+                        <i class="fa-solid fa-unlock"></i> 解除
+                    </button>
+                </div>
+            `;
+        });
+
+        blockListContainer.innerHTML = html;
+    } catch (err) {
+        console.error('Error rendering block list:', err);
+        blockListContainer.innerHTML = '<div class="empty-state">読み込みエラー</div>';
     }
 }
 
@@ -2162,7 +2295,7 @@ window.cancelEventParticipation = async function (messageId) {
 
     const confirmed = await Swal.fire({
         title: 'キャンセル確認',
-        text: 'この予定への参加をキャンセルしますか？',
+        text: 'この予定への参加をキャンセルしますか？相手に通知されます。',
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#d33',
@@ -2174,11 +2307,28 @@ window.cancelEventParticipation = async function (messageId) {
     if (!confirmed.isConfirmed) return;
 
     try {
+        // Get event details before deleting
+        const appointment = appointments.find(a => a.id === messageId);
+        const chatId = appointment?.chatId;
+
         await supabaseClient
             .from('event_participants')
             .delete()
             .eq('message_id', messageId)
             .eq('user_id', currentUser.id);
+
+        // Send cancellation notification to the chat
+        if (chatId) {
+            const eventInfo = appointment ? `${appointment.date || ''} ${appointment.time || ''} ${appointment.location || ''}`.trim() : '予定';
+            await supabaseClient
+                .from('messages')
+                .insert({
+                    chat_id: chatId,
+                    sender_id: currentUser.id,
+                    content: `❌ 予定への参加をキャンセルしました\n${eventInfo}`,
+                    type: 'system'
+                });
+        }
 
         // Update local state
         joinedEvents = joinedEvents.filter(id => id !== messageId);
@@ -2189,7 +2339,8 @@ window.cancelEventParticipation = async function (messageId) {
         Swal.fire({
             icon: 'success',
             title: 'キャンセルしました',
-            timer: 1500,
+            text: '相手に通知を送信しました',
+            timer: 2000,
             showConfirmButton: false
         });
     } catch (err) {
@@ -2955,8 +3106,8 @@ function renderMessage(msg) {
                         <div class="event-row"><i class="fa-regular fa-clock"></i> ${msg.eventData?.time || '--:--'}</div>
                     </div>
                     <div class="event-action">
-                        <button class="join-btn ${isJoined ? 'joined' : ''}" onclick="toggleJoinEvent('${messageId}')">
-                            ${isJoined ? '参加中' : '参加する'}
+                        <button class="join-btn ${isJoined ? 'joined' : ''}" ${isJoined ? 'disabled' : `onclick="joinEvent('${messageId}')"`}>
+                            ${isJoined ? '✓ 参加中' : '参加する'}
                         </button>
                     </div>
                 </div>
@@ -2995,37 +3146,29 @@ function renderMessage(msg) {
     scrollToBottom();
 }
 
-window.toggleJoinEvent = async function (messageId) {
+window.joinEvent = async function (messageId) {
     if (!supabaseClient || !currentUser) {
         alert('ログインしてください');
         return;
     }
 
     try {
-        const isJoined = joinedEvents.includes(messageId);
-
-        if (isJoined) {
-            // Un-join: Delete from event_participants
-            await supabaseClient
-                .from('event_participants')
-                .delete()
-                .eq('message_id', messageId)
-                .eq('user_id', currentUser.id);
-
-            // Update local state
-            joinedEvents = joinedEvents.filter(id => id !== messageId);
-        } else {
-            // Join: Insert into event_participants
-            await supabaseClient
-                .from('event_participants')
-                .insert({
-                    message_id: messageId,
-                    user_id: currentUser.id
-                });
-
-            // Update local state
-            joinedEvents.push(messageId);
+        // Check if already joined
+        if (joinedEvents.includes(messageId)) {
+            Swal.fire({ icon: 'info', title: 'すでに参加済みです', text: 'キャンセルする場合は予定リストから行ってください', timer: 2000, showConfirmButton: false });
+            return;
         }
+
+        // Join: Insert into event_participants
+        await supabaseClient
+            .from('event_participants')
+            .insert({
+                message_id: messageId,
+                user_id: currentUser.id
+            });
+
+        // Update local state
+        joinedEvents.push(messageId);
 
         // Re-render messages to update button state
         const chat = chats.find(c => c.id === currentChatId);
@@ -3036,10 +3179,17 @@ window.toggleJoinEvent = async function (messageId) {
         // Re-fetch schedule to update the schedule view
         await fetchSchedule();
 
+        Swal.fire({ icon: 'success', title: '参加しました', timer: 1500, showConfirmButton: false });
+
     } catch (err) {
-        console.error('Error toggling event participation:', err);
-        alert('参加状態の更新に失敗しました');
+        console.error('Error joining event:', err);
+        alert('参加に失敗しました');
     }
+};
+
+// Keep toggleJoinEvent for backward compatibility but redirect to joinEvent
+window.toggleJoinEvent = async function (messageId) {
+    await window.joinEvent(messageId);
 };
 
 window.addFriend = function (id) {
@@ -3310,6 +3460,7 @@ function setupEventListeners() {
     // Friend Profile Modal
     const closeFriendProfileBtn = document.getElementById('close-friend-profile-btn');
     const startChatBtn = document.getElementById('btn-start-chat');
+    const blockFriendBtn = document.getElementById('btn-block-friend');
 
     if (closeFriendProfileBtn) {
         closeFriendProfileBtn.addEventListener('click', closeFriendProfileModal);
@@ -3317,6 +3468,15 @@ function setupEventListeners() {
 
     if (startChatBtn) {
         startChatBtn.addEventListener('click', startChatWithFriend);
+    }
+
+    if (blockFriendBtn) {
+        blockFriendBtn.addEventListener('click', async () => {
+            if (selectedFriend) {
+                closeFriendProfileModal();
+                await window.blockUser(selectedFriend.id, selectedFriend.full_name);
+            }
+        });
     }
 
     // Friend Request Modal
