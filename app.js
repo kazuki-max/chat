@@ -2138,14 +2138,17 @@ function renderSchedule() {
             <div class="schedule-row"><i class="fa-regular fa-clock"></i> ${app.time || '時間未定'}</div>
             <div class="schedule-row"><i class="fa-solid fa-align-left"></i> ${app.details || '詳細なし'}</div>
             <div class="schedule-actions">
-                <button class="schedule-btn arrival-btn" onclick="notifyArrival('${app.id}', '${app.chatId}')">
-                    <i class="fa-solid fa-location-dot"></i> 到着通知
+                <button class="schedule-btn arrival-btn gps" onclick="notifyArrivalWithGPS('${app.chatId}')">
+                    <i class="fa-solid fa-location-crosshairs"></i> GPS到着
+                </button>
+                <button class="schedule-btn arrival-btn simple" onclick="notifyArrivalSimple('${app.chatId}')">
+                    <i class="fa-solid fa-check"></i> 到着
                 </button>
                 <button class="schedule-btn chat-btn" onclick="openChat('${app.chatId}')">
                     <i class="fa-solid fa-comment"></i> チャット
                 </button>
                 <button class="schedule-btn cancel-btn" onclick="cancelEventParticipation('${app.id}')">
-                    <i class="fa-solid fa-xmark"></i> キャンセル
+                    <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
         `;
@@ -2222,6 +2225,113 @@ window.notifyArrival = async function (messageId, chatId) {
     } else {
         // GPS not available, send without location
         await sendArrivalNotification(chatId, null, null);
+    }
+};
+
+// Notify arrival with GPS location
+window.notifyArrivalWithGPS = async function (chatId) {
+    if (!supabaseClient || !currentUser) return;
+
+    if (!('geolocation' in navigator)) {
+        Swal.fire({ icon: 'error', title: 'エラー', text: 'この端末ではGPSが利用できません' });
+        return;
+    }
+
+    Swal.fire({
+        title: '📍 位置情報を取得中...',
+        text: 'GPSで現在地を取得しています',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    navigator.geolocation.getCurrentPosition(
+        async (position) => {
+            const { latitude, longitude, accuracy } = position.coords;
+
+            try {
+                // Get address from coordinates using reverse geocoding
+                let addressText = `緯度: ${latitude.toFixed(6)}, 経度: ${longitude.toFixed(6)}`;
+
+                try {
+                    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=ja`);
+                    const data = await response.json();
+                    if (data.display_name) {
+                        addressText = data.display_name;
+                    }
+                } catch (geoErr) {
+                    console.log('Reverse geocoding failed, using coordinates');
+                }
+
+                const content = `📍 待ち合わせ場所に到着しました！\n\n現在地: ${addressText}\n精度: 約${Math.round(accuracy)}m`;
+                const locationData = { lat: latitude, lng: longitude, accuracy, address: addressText };
+
+                const { error } = await supabaseClient
+                    .from('messages')
+                    .insert({
+                        chat_id: chatId,
+                        sender_id: currentUser.id,
+                        content: content,
+                        type: 'arrival',
+                        data: locationData
+                    });
+
+                Swal.close();
+
+                if (error) throw error;
+
+                Swal.fire({
+                    icon: 'success',
+                    title: '到着を通知しました',
+                    html: `<p style="font-size:13px;">現在地: ${addressText}</p>`,
+                    timer: 3000,
+                    showConfirmButton: false
+                });
+            } catch (err) {
+                console.error('Error sending GPS arrival:', err);
+                Swal.fire({ icon: 'error', title: 'エラー', text: '通知の送信に失敗しました' });
+            }
+        },
+        (error) => {
+            Swal.close();
+            console.error('GPS Error:', error);
+            let errorMessage = 'GPSで位置情報を取得できませんでした';
+            if (error.code === 1) errorMessage = '位置情報の使用が許可されていません';
+            if (error.code === 2) errorMessage = '位置情報を取得できませんでした';
+            if (error.code === 3) errorMessage = '位置情報の取得がタイムアウトしました';
+            Swal.fire({ icon: 'error', title: 'GPS エラー', text: errorMessage });
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+};
+
+// Simple arrival notification without GPS
+window.notifyArrivalSimple = async function (chatId) {
+    if (!supabaseClient || !currentUser) return;
+
+    try {
+        const content = '✅ 待ち合わせ場所に到着しました！';
+
+        const { error } = await supabaseClient
+            .from('messages')
+            .insert({
+                chat_id: chatId,
+                sender_id: currentUser.id,
+                content: content,
+                type: 'arrival',
+                data: null
+            });
+
+        if (error) throw error;
+
+        Swal.fire({
+            icon: 'success',
+            title: '到着を通知しました',
+            timer: 1500,
+            showConfirmButton: false
+        });
+    } catch (err) {
+        console.error('Error sending simple arrival:', err);
+        Swal.fire({ icon: 'error', title: 'エラー', text: '通知の送信に失敗しました' });
     }
 };
 
@@ -2846,11 +2956,13 @@ function renderMessage(msg) {
         `;
     } else if (msg.type === 'arrival') {
         const hasLocation = msg.eventData?.lat && msg.eventData?.lng;
+        const address = msg.eventData?.address || '';
         innerHTML += `
             <div class="message-content">
                 <div class="bubble arrival-bubble">
                     <div class="arrival-header"><i class="fa-solid fa-location-dot"></i> 到着通知</div>
                     <div class="arrival-text">${msg.text || '待ち合わせ場所に到着しました！'}</div>
+                    ${address ? `<div class="arrival-address"><i class="fa-solid fa-map-marker-alt"></i> ${address}</div>` : ''}
                     ${hasLocation ? `
                         <a href="https://www.google.com/maps?q=${msg.eventData.lat},${msg.eventData.lng}" target="_blank" class="map-link">
                             <i class="fa-solid fa-map"></i> 地図で確認

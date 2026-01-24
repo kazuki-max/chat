@@ -613,8 +613,34 @@ header {
 
 .arrival-text {
     padding: 12px;
+    padding-bottom: 6px;
     font-size: 14px;
     color: #333;
+    white-space: pre-wrap;
+}
+
+.arrival-address {
+    padding: 6px 12px 12px 12px;
+    font-size: 12px;
+    color: #555;
+    background: rgba(0, 0, 0, 0.03);
+    border-radius: 0 0 8px 8px;
+}
+
+.arrival-address i {
+    color: #4CAF50;
+    margin-right: 4px;
+}
+
+/* Schedule button variants */
+.schedule-btn.arrival-btn.gps {
+    background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
+    color: #fff;
+}
+
+.schedule-btn.arrival-btn.simple {
+    background: linear-gradient(135deg, #8BC34A 0%, #689F38 100%);
+    color: #fff;
 }
 
 .map-link {
