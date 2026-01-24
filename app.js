@@ -33,6 +33,7 @@ let currentChatId = null;
 let isRegisterMode = false;
 let isOtpMode = false;
 let currentSubscription = null; // Store realtime channel
+let joinedEvents = []; // Array of message IDs for events user has joined
 let settings = {
     privacy: false,
     screenshot: false,
@@ -564,13 +565,66 @@ async function fetchChats() {
     }
 }
 
-// Fetch schedule/appointments from database (stub for now)
+// Fetch schedule/appointments from database
 async function fetchSchedule() {
     if (!supabaseClient || !currentUser) return;
 
-    // TODO: Implement actual schedule fetching from Supabase
-    // For now, just render the existing appointments array
-    renderSchedule();
+    try {
+        // Get all events the user has joined
+        const { data: participations, error: partError } = await supabaseClient
+            .from('event_participants')
+            .select('message_id')
+            .eq('user_id', currentUser.id);
+
+        if (partError) {
+            console.error('Error fetching participations:', partError);
+            renderSchedule();
+            return;
+        }
+
+        // Update joinedEvents array
+        joinedEvents = participations ? participations.map(p => p.message_id) : [];
+
+        if (joinedEvents.length === 0) {
+            appointments = [];
+            renderSchedule();
+            return;
+        }
+
+        // Get event message details for joined events
+        const { data: eventMessages, error: msgError } = await supabaseClient
+            .from('messages')
+            .select('id, data, chat_id, created_at')
+            .in('id', joinedEvents)
+            .eq('type', 'event');
+
+        if (msgError) {
+            console.error('Error fetching event messages:', msgError);
+            renderSchedule();
+            return;
+        }
+
+        // Get chat names for each event
+        appointments = await Promise.all(eventMessages.map(async (msg) => {
+            const chat = chats.find(c => c.id === msg.chat_id);
+            const chatName = chat ? chat.name : 'チャット';
+
+            return {
+                id: msg.id,
+                chatId: msg.chat_id,
+                chatName: chatName,
+                date: msg.data?.date || '',
+                time: msg.data?.time || '',
+                location: msg.data?.location || '',
+                details: msg.data?.details || ''
+            };
+        }));
+
+        renderSchedule();
+    } catch (err) {
+        console.error('Fetch schedule error:', err);
+        renderSchedule();
+    }
 }
 
 
@@ -2650,7 +2704,8 @@ function renderMessage(msg) {
     }
 
     if (msg.type === 'event') {
-        const isJoined = appointments.some(a => a.id === msg.eventId);
+        const messageId = msg.id;
+        const isJoined = joinedEvents.includes(messageId);
         innerHTML += `
             <div class="message-content">
                 <div class="bubble event-bubble">
@@ -2661,7 +2716,7 @@ function renderMessage(msg) {
                         <div class="event-row"><i class="fa-regular fa-clock"></i> ${msg.eventData?.time || '--:--'}</div>
                     </div>
                     <div class="event-action">
-                        <button class="join-btn ${isJoined ? 'joined' : ''}" onclick="toggleJoinEvent('${msg.eventId}')">
+                        <button class="join-btn ${isJoined ? 'joined' : ''}" onclick="toggleJoinEvent('${messageId}')">
                             ${isJoined ? '参加中' : '参加する'}
                         </button>
                     </div>
@@ -2685,28 +2740,51 @@ function renderMessage(msg) {
     scrollToBottom();
 }
 
-window.toggleJoinEvent = function (eventId) {
-    if (!currentChatId) return;
-    const chat = chats.find(c => c.id === currentChatId);
-    const msg = chat.messages.find(m => m.eventId === eventId);
-    if (!msg) return;
-
-    const existingIndex = appointments.findIndex(a => a.id === eventId);
-    if (existingIndex > -1) {
-        // Un-join
-        appointments.splice(existingIndex, 1);
-    } else {
-        // Join
-        appointments.push({
-            id: eventId,
-            chatId: chat.id,
-            chatName: chat.name,
-            ...msg.eventData
-        });
+window.toggleJoinEvent = async function (messageId) {
+    if (!supabaseClient || !currentUser) {
+        alert('ログインしてください');
+        return;
     }
 
-    renderMessages(chat.messages);
-    renderSchedule();
+    try {
+        const isJoined = joinedEvents.includes(messageId);
+
+        if (isJoined) {
+            // Un-join: Delete from event_participants
+            await supabaseClient
+                .from('event_participants')
+                .delete()
+                .eq('message_id', messageId)
+                .eq('user_id', currentUser.id);
+
+            // Update local state
+            joinedEvents = joinedEvents.filter(id => id !== messageId);
+        } else {
+            // Join: Insert into event_participants
+            await supabaseClient
+                .from('event_participants')
+                .insert({
+                    message_id: messageId,
+                    user_id: currentUser.id
+                });
+
+            // Update local state
+            joinedEvents.push(messageId);
+        }
+
+        // Re-render messages to update button state
+        const chat = chats.find(c => c.id === currentChatId);
+        if (chat) {
+            renderMessages(chat.messages);
+        }
+
+        // Re-fetch schedule to update the schedule view
+        await fetchSchedule();
+
+    } catch (err) {
+        console.error('Error toggling event participation:', err);
+        alert('参加状態の更新に失敗しました');
+    }
 };
 
 window.addFriend = function (id) {
