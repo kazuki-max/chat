@@ -2242,3 +2242,115 @@ input:checked+.slider:before {
 #admin-view.active~#main-nav {
     display: none !important;
 }
+
+/* ========================================
+   Mobile Responsive Styles
+   ======================================== */
+@media screen and (max-width: 480px) {
+
+    /* Login Button */
+    .google-login-btn {
+        width: 90%;
+        max-width: none;
+        padding: 14px 20px;
+        font-size: 15px;
+        border-radius: 25px;
+    }
+
+    .google-auth-container {
+        padding: 0 16px;
+    }
+
+    .auth-desc {
+        font-size: 13px;
+        padding: 0 8px;
+    }
+
+    .auth-note {
+        font-size: 11px;
+        padding: 0 16px;
+    }
+
+    .brand h1 {
+        font-size: 28px;
+    }
+
+    .brand i {
+        font-size: 56px;
+    }
+
+    /* Schedule Page Buttons */
+    .schedule-actions {
+        gap: 6px;
+    }
+
+    .schedule-btn {
+        min-width: 60px;
+        padding: 10px 8px;
+        font-size: 11px;
+        border-radius: 16px;
+        flex: 1 1 auto;
+    }
+
+    .schedule-btn i {
+        font-size: 12px;
+    }
+
+    /* Make buttons stack on very small screens */
+    .schedule-item {
+        padding: 14px;
+        margin: 10px 12px;
+    }
+
+    .schedule-title {
+        font-size: 15px;
+    }
+
+    .schedule-row {
+        font-size: 12px;
+    }
+
+    /* Chat room input area */
+    .input-area {
+        padding: 8px 12px;
+    }
+
+    .input-area input {
+        font-size: 14px;
+        padding: 10px 12px;
+    }
+
+    /* Message bubbles */
+    .bubble {
+        max-width: 85%;
+        font-size: 14px;
+    }
+
+    /* Event bubble */
+    .bubble.event-bubble {
+        width: 180px;
+    }
+
+    /* Arrival bubble */
+    .bubble.arrival-bubble {
+        max-width: 220px;
+    }
+}
+
+/* Smaller phones */
+@media screen and (max-width: 360px) {
+    .schedule-btn {
+        min-width: 50px;
+        padding: 8px 6px;
+        font-size: 10px;
+    }
+
+    .schedule-btn i {
+        display: none;
+    }
+
+    .google-login-btn {
+        padding: 12px 16px;
+        font-size: 14px;
+    }
+}
