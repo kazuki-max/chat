@@ -2965,13 +2965,11 @@ function renderMessage(msg) {
         `;
     } else if (msg.type === 'arrival') {
         const hasLocation = msg.eventData?.lat && msg.eventData?.lng;
-        const address = msg.eventData?.address || '';
         innerHTML += `
             <div class="message-content">
                 <div class="bubble arrival-bubble">
                     <div class="arrival-header"><i class="fa-solid fa-location-dot"></i> 到着通知</div>
                     <div class="arrival-text">${msg.text || '待ち合わせ場所に到着しました！'}</div>
-                    ${address ? `<div class="arrival-address"><i class="fa-solid fa-map-marker-alt"></i> ${address}</div>` : ''}
                     ${hasLocation ? `
                         <a href="https://www.google.com/maps?q=${msg.eventData.lat},${msg.eventData.lng}" target="_blank" class="map-link">
                             <i class="fa-solid fa-map"></i> 地図で確認
