@@ -2824,7 +2824,7 @@ function setupEventListeners() {
         reminderModal.classList.remove('active');
     });
 
-    reminderForm.addEventListener('submit', (e) => {
+    reminderForm.addEventListener('submit', async (e) => {
         e.preventDefault();
 
         if (!currentChatId) {
@@ -2839,26 +2839,53 @@ function setupEventListeners() {
         const details = document.getElementById('event-details').value;
 
         const eventData = { date, time, location, details };
-        const eventId = Date.now();
 
-        // Send Event Message
-        const chat = chats.find(c => c.id === currentChatId);
-        const now = new Date();
-        const timeString = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
+        // Save to Supabase as a message with type 'event'
+        if (supabaseClient && currentUser) {
+            try {
+                const { error } = await supabaseClient
+                    .from('messages')
+                    .insert({
+                        chat_id: currentChatId,
+                        sender_id: currentUser.id,
+                        content: '予定を共有しました',
+                        type: 'event',
+                        data: eventData // Store event data as JSONB
+                    });
 
-        chat.messages.push({
-            id: Date.now(),
-            type: 'event',
-            eventId: eventId,
-            eventData: eventData, // Just data
-            text: '予定を共有しました', // Fallback
-            time: timeString,
-            isMe: true
-        });
+                if (error) {
+                    console.error('Failed to send event:', error);
+                    alert('予定の送信に失敗しました');
+                    return;
+                }
 
-        renderMessages(chat.messages);
-        reminderModal.classList.remove('active');
-        reminderForm.reset();
+                // Success - realtime subscription will update the UI
+                reminderModal.classList.remove('active');
+                reminderForm.reset();
+            } catch (err) {
+                console.error('Error sending event:', err);
+                alert('予定の送信エラー');
+            }
+        } else {
+            // Offline fallback
+            const chat = chats.find(c => c.id === currentChatId);
+            const now = new Date();
+            const timeString = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+            chat.messages.push({
+                id: Date.now(),
+                type: 'event',
+                eventId: Date.now(),
+                eventData: eventData,
+                text: '予定を共有しました',
+                time: timeString,
+                isMe: true
+            });
+
+            renderMessages(chat.messages);
+            reminderModal.classList.remove('active');
+            reminderForm.reset();
+        }
     });
 
     // Navigation
