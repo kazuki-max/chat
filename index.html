@@ -42,113 +42,13 @@
                     <h1>ChatApp</h1>
                 </div>
 
-                <!-- Login Form -->
-                <div id="auth-mode-login" class="auth-mode active">
-                    <h2>ログイン</h2>
-
-                    <!-- Step 1: Email Input -->
-                    <div id="login-step-email" class="auth-step active">
-                        <p class="auth-desc">メールアドレスを入力して認証コードを受け取ります</p>
-                        <form id="login-email-form">
-                            <input type="email" id="login-email" placeholder="メールアドレス" required>
-                            <button type="submit" class="btn-submit">
-                                <i class="fa-solid fa-paper-plane"></i> ログイン
-                            </button>
-                        </form>
-
-                        <div class="social-login">
-                            <p class="social-text">または</p>
-                            <div class="social-btns">
-                                <button type="button" class="social-btn google" onclick="handleSocialLogin('google')">
-                                    <i class="fa-brands fa-google"></i> Googleでログイン
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Step 2: OTP Input -->
-                    <div id="login-step-otp" class="auth-step">
-                        <p class="auth-desc">
-                            <span id="login-email-display"></span> に送信された<br>6桁の認証コードを入力してください
-                        </p>
-                        <form id="login-otp-form">
-                            <div class="otp-input-group" id="login-otp-inputs">
-                                <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric">
-                                <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric">
-                                <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric">
-                                <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric">
-                                <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric">
-                                <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric">
-                            </div>
-                            <button type="submit" class="btn-submit">
-                                <i class="fa-solid fa-check"></i> ログイン
-                            </button>
-                        </form>
-                        <div class="otp-actions">
-                            <button type="button" class="text-link" onclick="resendOtp('login')">コードを再送信</button>
-                            <button type="button" class="text-link" onclick="backToEmail('login')">メールアドレスを変更</button>
-                        </div>
-                    </div>
-
-                    <div class="auth-toggle">
-                        <span>アカウントをお持ちでないですか？</span>
-                        <button type="button" class="text-link" onclick="switchAuthMode('register')">新規登録</button>
-                    </div>
-                </div>
-
-                <!-- Register Form -->
-                <div id="auth-mode-register" class="auth-mode">
-                    <h2>新規登録</h2>
-
-                    <!-- Step 1: Name & Email Input -->
-                    <div id="register-step-email" class="auth-step active">
-                        <p class="auth-desc">アカウント情報を入力してください</p>
-                        <form id="register-email-form">
-                            <input type="text" id="register-name" placeholder="ニックネーム" required>
-                            <input type="email" id="register-email" placeholder="メールアドレス" required>
-                            <button type="submit" class="btn-submit">
-                                <i class="fa-solid fa-paper-plane"></i> 新規登録
-                            </button>
-                        </form>
-
-                        <div class="social-login">
-                            <p class="social-text">または</p>
-                            <div class="social-btns">
-                                <button type="button" class="social-btn google" onclick="handleSocialLogin('google')">
-                                    <i class="fa-brands fa-google"></i> Googleで登録
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Step 2: OTP Input -->
-                    <div id="register-step-otp" class="auth-step">
-                        <p class="auth-desc">
-                            <span id="register-email-display"></span> に送信された<br>6桁の認証コードを入力してください
-                        </p>
-                        <form id="register-otp-form">
-                            <div class="otp-input-group" id="register-otp-inputs">
-                                <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric">
-                                <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric">
-                                <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric">
-                                <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric">
-                                <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric">
-                                <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric">
-                            </div>
-                            <button type="submit" class="btn-submit">
-                                <i class="fa-solid fa-user-plus"></i> アカウント作成
-                            </button>
-                        </form>
-                        <div class="otp-actions">
-                            <button type="button" class="text-link" onclick="resendOtp('register')">コードを再送信</button>
-                            <button type="button" class="text-link" onclick="backToEmail('register')">情報を変更</button>
-                        </div>
-                    </div>
-
-                    <div class="auth-toggle">
-                        <span>すでにアカウントをお持ちですか？</span>
-                        <button type="button" class="text-link" onclick="switchAuthMode('login')">ログイン</button>
-                    </div>
+                <div class="google-auth-container">
+                    <p class="auth-desc">Googleアカウントでログインしてください</p>
+                    <button type="button" class="google-login-btn" onclick="handleSocialLogin('google')">
+                        <i class="fa-brands fa-google"></i>
+                        Googleでログイン / 新規登録
+                    </button>
+                    <p class="auth-note">初めてご利用の場合は自動的にアカウントが作成されます</p>
                 </div>
 
             </div>
