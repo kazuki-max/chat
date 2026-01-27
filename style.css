@@ -1703,8 +1703,8 @@ input:checked+.slider:before {
     flex: 1;
     overflow-y: auto;
     padding: 16px;
-    padding-bottom: 80px;
-    /* Space for fixed input area */
+    padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+    /* Space for fixed input area + safe area */
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -1855,21 +1855,22 @@ input:checked+.slider:before {
 /* Input Area - Fixed at bottom */
 .input-area {
     background-color: #f8f8f8;
-    padding: 8px 12px;
+    padding: 10px 12px;
     display: flex;
     align-items: center;
     gap: 12px;
     /* Fixed at bottom of chat room */
     position: fixed;
-    bottom: 0;
+    bottom: env(safe-area-inset-bottom, 0px);
     left: 50%;
     transform: translateX(-50%);
     width: 100%;
     max-width: var(--max-width);
     z-index: 101;
     border-top: 1px solid #e0e0e0;
-    /* Safety for iPhone X+ home bar */
-    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    /* Extra padding for safety */
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
 }
 
 .input-wrapper {
