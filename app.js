@@ -3584,5 +3584,37 @@ function setupEventListeners() {
 // Ensure DOM is fully loaded before running
 document.addEventListener('DOMContentLoaded', init);
 
+// Handle mobile keyboard - adjust input area position
+if ('visualViewport' in window) {
+    window.visualViewport.addEventListener('resize', () => {
+        const inputArea = document.querySelector('.input-area');
+        if (inputArea && document.getElementById('chat-room-view')?.classList.contains('active')) {
+            const viewportHeight = window.visualViewport.height;
+            const offsetTop = window.visualViewport.offsetTop;
+            inputArea.style.bottom = `${window.innerHeight - viewportHeight - offsetTop}px`;
+        }
+    });
+
+    window.visualViewport.addEventListener('scroll', () => {
+        const inputArea = document.querySelector('.input-area');
+        if (inputArea && document.getElementById('chat-room-view')?.classList.contains('active')) {
+            const viewportHeight = window.visualViewport.height;
+            const offsetTop = window.visualViewport.offsetTop;
+            inputArea.style.bottom = `${window.innerHeight - viewportHeight - offsetTop}px`;
+        }
+    });
+}
+
+// Prevent zoom on double tap
+document.addEventListener('touchend', (e) => {
+    const now = Date.now();
+    if (now - lastTouchEnd <= 300) {
+        e.preventDefault();
+    }
+    lastTouchEnd = now;
+}, { passive: false });
+
+let lastTouchEnd = 0;
+
 // End of app.js
 // Timestamp: 1768720272

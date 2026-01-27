@@ -33,9 +33,13 @@ body {
     background-color: #f5f5f5;
     color: var(--text-primary);
     height: 100vh;
+    height: 100dvh;
+    /* Dynamic viewport height for mobile */
     display: flex;
     justify-content: center;
     overflow: hidden;
+    overscroll-behavior: none;
+    /* Prevent pull-to-refresh zoom */
 }
 
 #app {
