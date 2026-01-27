@@ -2466,3 +2466,47 @@ input:checked+.slider:before {
     color: #666 !important;
     cursor: not-allowed;
 }
+
+/* Block List Modal */
+.block-list-modal-content {
+    width: 90%;
+    max-width: 400px;
+    max-height: 70vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #e0e0e0;
+    margin-bottom: 16px;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.modal-close-btn {
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: #666;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.modal-close-btn:hover {
+    background: #f0f0f0;
+    color: #333;
+}
+
+.block-list-modal-content .block-list-container {
+    flex: 1;
+    overflow-y: auto;
+    max-height: 50vh;
+}

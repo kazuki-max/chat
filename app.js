@@ -760,6 +760,22 @@ async function renderBlockList() {
     }
 }
 
+// Open block list modal
+window.openBlockListModal = function () {
+    const modal = document.getElementById('block-list-modal');
+    if (modal) {
+        modal.classList.add('active');
+        renderBlockList();
+    }
+};
+
+// Close block list modal
+window.closeBlockListModal = function () {
+    const modal = document.getElementById('block-list-modal');
+    if (modal) {
+        modal.classList.remove('active');
+    }
+};
 
 function updateMyProfileUI() {
     console.log('updateMyProfileUI called, currentUser:', currentUser);
@@ -3489,6 +3505,12 @@ function setupEventListeners() {
 
     if (sendRequestBtn) {
         sendRequestBtn.addEventListener('click', sendFriendRequest);
+    }
+
+    // Block List Modal
+    const closeBlockListBtn = document.getElementById('close-block-list-btn');
+    if (closeBlockListBtn) {
+        closeBlockListBtn.addEventListener('click', closeBlockListModal);
     }
 
     // Friend Search

@@ -145,7 +145,6 @@
             <header class="app-header">
                 <h1>ホーム</h1>
                 <div class="header-icons">
-                    <i class="fa-solid fa-gear"></i>
                     <i class="fa-solid fa-user-plus" id="add-friend-btn"></i>
                 </div>
             </header>
@@ -258,12 +257,14 @@
                 </div>
 
                 <!-- Block List Section -->
-                <div class="settings-section block-section">
-                    <div class="settings-section-header">
-                        <i class="fa-solid fa-ban"></i> ブロックリスト
-                    </div>
-                    <div id="block-list-container" class="block-list-container">
-                        <div class="empty-state">ブロックしているユーザーはいません</div>
+                <div class="settings-section">
+                    <div class="settings-item" onclick="openBlockListModal()" style="cursor: pointer;">
+                        <div class="settings-label">
+                            <span class="settings-name"><i class="fa-solid fa-ban"
+                                    style="color: #dc3545; margin-right: 8px;"></i>ブロックリスト</span>
+                            <span class="settings-desc">ブロックしているユーザーを管理します</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-right" style="color: #999;"></i>
                     </div>
                 </div>
 
@@ -292,14 +293,7 @@
         <!-- Chat List View -->
         <div id="chat-list-view" class="view">
             <header class="app-header">
-                <div class="header-left">
-                    <h1>チャット</h1>
-                </div>
-                <div class="header-icons">
-                    <span id="user-name"></span>
-                    <!-- <i class="fa-solid fa-magnifying-glass"></i> -->
-                    <i class="fa-regular fa-square-plus" id="add-friend-btn"></i>
-                </div>
+                <h1>チャット</h1>
             </header>
             <div class="chat-list" id="chat-list">
                 <!-- Chat items will be injected here via JS -->
@@ -471,6 +465,21 @@
                     <button type="button" class="block-user-btn" id="btn-block-friend">
                         <i class="fa-solid fa-ban"></i> ブロック
                     </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Block List Modal -->
+        <div id="block-list-modal" class="modal">
+            <div class="modal-content block-list-modal-content">
+                <div class="modal-header">
+                    <h3><i class="fa-solid fa-ban" style="color: #dc3545; margin-right: 8px;"></i>ブロックリスト</h3>
+                    <button type="button" class="modal-close-btn" id="close-block-list-btn">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div id="block-list-container" class="block-list-container">
+                    <div class="empty-state">ブロックしているユーザーはいません</div>
                 </div>
             </div>
         </div>
