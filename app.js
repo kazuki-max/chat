@@ -3616,5 +3616,25 @@ document.addEventListener('touchend', (e) => {
 
 let lastTouchEnd = 0;
 
+// Prevent pinch zoom (2-finger zoom)
+document.addEventListener('touchmove', (e) => {
+    if (e.touches.length > 1) {
+        e.preventDefault();
+    }
+}, { passive: false });
+
+// Prevent gesturestart (Safari pinch zoom)
+document.addEventListener('gesturestart', (e) => {
+    e.preventDefault();
+}, { passive: false });
+
+document.addEventListener('gesturechange', (e) => {
+    e.preventDefault();
+}, { passive: false });
+
+document.addEventListener('gestureend', (e) => {
+    e.preventDefault();
+}, { passive: false });
+
 // End of app.js
 // Timestamp: 1768720272
